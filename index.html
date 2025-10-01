@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retífica Orçamentos</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <div class="logo-header">
+                    <img src="logo/logo.png" alt="Logo da Retífica" class="brand-logo" />
+                    <div class="brand-greeting">
+                        <span class="hello">Olá</span>
+                        <span id="current-username">Admin</span>
+                    </div>
+                </div>
+                <div id="device-status-badge" class="device-badge" title="Status do dispositivo"></div>
+            </div>
+            
+            <ul class="nav-menu">
+                <li class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="nav-item" data-section="orcamentos">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Orçamentos</span>
+                </li>
+                <li class="nav-item" data-section="clientes">
+                    <i class="fas fa-users"></i>
+                    <span>Clientes</span>
+                </li>
+                <li class="nav-item" data-section="pecas">
+                    <i class="fas fa-wrench"></i>
+                    <span>Peças</span>
+                </li>
+                <li class="nav-item" data-section="servicos">
+                    <i class="fas fa-tools"></i>
+                    <span>Serviços</span>
+                </li>
+                <li class="nav-item" data-section="dispositivos">
+                    <i class="fas fa-print"></i>
+                    <span>Dispositivos</span>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-sm" id="logout-btn" title="Sair">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Sair</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="sidebar-overlay" class="sidebar-overlay"></div>
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" aria-label="Abrir menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title">Dashboard</h1>
+                    <p class="page-subtitle">Visão geral do seu negócio</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" id="novo-orcamento">
+                        <i class="fas fa-plus"></i>
+                        Novo Orçamento
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section class="section active" id="dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-orcamentos">0</h3>
+                            <p>Orçamentos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-clientes">0</h3>
+                            <p>Clientes</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="valor-total">R$ 0,00</h3>
+                            <p>Valor Total</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-orcamentos">
+                    <h2>Orçamentos Recentes</h2>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Cliente</th>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-orcamentos-list">
+                                <!-- Dados serão inseridos aqui pelo JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orçamentos Section -->
+            <section class="section" id="orcamentos">
+                <div class="section-header">
+                    <h2>Orçamentos</h2>
+                    <button class="btn btn-primary" onclick="openModal('orcamento-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Orçamento
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar orçamentos..." id="search-orcamentos">
+                    <select class="filter-select" id="status-filter">
+                        <option value="">Todos os Status</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="aprovado">Aprovado</option>
+                        <option value="rejeitado">Rejeitado</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Data</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orcamentos-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Clientes Section -->
+            <section class="section" id="clientes">
+                <div class="section-header">
+                    <h2>Clientes</h2>
+                    <button class="btn btn-primary" onclick="openModal('cliente-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Cliente
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar clientes..." id="search-clientes">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Email</th>
+                                <th>Telefone</th>
+                                <th>Cidade</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientes-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Peças Section -->
+            <section class="section" id="pecas">
+                <div class="section-header">
+                    <h2>Peças</h2>
+                    <button class="btn btn-primary" onclick="openModal('peca-modal')">
+                        <i class="fas fa-plus"></i>
+                        Nova Peça
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar peças..." id="search-pecas">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pecas-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Serviços Section -->
+            <section class="section" id="servicos">
+                <div class="section-header">
+                    <h2>Serviços</h2>
+                    <button class="btn btn-primary" onclick="openModal('servico-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Serviço
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar serviços..." id="search-servicos">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="servicos-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Dispositivos Section -->
+            <section class="section" id="dispositivos">
+                <div class="section-header">
+                    <h2>Dispositivos</h2>
+                    <div>
+                        <button class="btn btn-primary" id="add-device-btn" onclick="openModal('device-scan-modal')" style="margin-right:8px;">
+                            <i class="fas fa-plus"></i>
+                            Adicionar
+                        </button>
+                        <button class="btn btn-secondary" id="scan-devices-btn">
+                            <i class="fas fa-sync-alt"></i>
+                            Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Status</th>
+                                <th>Padrão</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dispositivos-list">
+                            <!-- Dispositivos serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Modal Editar Dispositivo -->
+            <div class="modal" id="device-edit-modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Editar Dispositivo</h3>
+                        <button class="modal-close" onclick="closeModal('device-edit-modal')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form id="dispositivo-form" onsubmit="handleDispositivoSubmit(event)">
+                        <div class="form-grid">
+                            <div class="form-group span-full">
+                                <label>Nome</label>
+                                <input type="text" name="nome" placeholder="Ex.: Impressora Térmica BT" required />
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('device-edit-modal')">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal Buscar Dispositivos (Simulado) -->
+            <div class="modal modal-large" id="device-scan-modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Adicionar Dispositivo</h3>
+                        <button class="modal-close" onclick="closeModal('device-scan-modal')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="scan-container">
+                        <div class="scan-search">
+                            <i class="fas fa-magnifying-glass"></i>
+                            <input type="text" id="scan-search" placeholder="Procurar Dispositivos" oninput="filterScanResults(this.value)" onkeydown="if(event.key==='Enter'){ startBluetoothScan(); }" />
+                            <div class="search-actions">
+                                <button class="btn btn-secondary" onclick="startBluetoothScan()">
+                                    <i class="fas fa-search"></i>
+                                    Buscar
+                                </button>
+                            </div>
+                        </div>
+                        <div id="scan-status" class="scan-status muted">Pronto para buscar dispositivos Bluetooth</div>
+                        <div id="scan-loading" class="scan-loading" style="display:none;">
+                            <div class="spinner"></div>
+                            <div>Procurando dispositivos próximos…</div>
+                        </div>
+                        <div id="scan-results" class="scan-results">
+                            <!-- resultados simulados aparecerão aqui -->
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('device-scan-modal')">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modais -->
+    <!-- Modal Cliente -->
+    <div class="modal" id="cliente-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Cliente</h3>
+                <button class="modal-close" onclick="closeModal('cliente-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="cliente-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nome Completo</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input type="tel" name="telefone" required>
+                    </div>
+                    <div class="form-group">
+                        <label>CPF/CNPJ</label>
+                        <input type="text" name="documento">
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço</label>
+                        <input type="text" name="endereco">
+                    </div>
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" name="cidade">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('cliente-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Peça -->
+    <div class="modal" id="peca-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nova Peça</h3>
+                <button class="modal-close" onclick="closeModal('peca-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="peca-form">
+                <div class="form-grid">
+                    
+                    <div class="form-group span-2">
+                        <label>Nome</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group span-2">
+                        <label class="label-optional">Descrição (Opcional)</label>
+                        <textarea name="descricao" rows="3" placeholder="Opcional"></textarea>
+                    </div>
+                    
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('peca-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Serviço -->
+    <div class="modal" id="servico-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Serviço</h3>
+                <button class="modal-close" onclick="closeModal('servico-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="servico-form">
+                <div class="form-grid">
+                    <div class="form-group span-2">
+                        <label>Nome</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group span-2">
+                        <label class="label-optional">Descrição (Opcional)</label>
+                        <textarea name="descricao" rows="3" placeholder="Opcional"></textarea>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('servico-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Orçamento -->
+    <div class="modal modal-large" id="orcamento-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Orçamento</h3>
+                <button class="modal-close" onclick="closeModal('orcamento-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="orcamento-form">
+                <div class="form-section">
+                    <h4>Informações do Cliente</h4>
+                    <div class="form-grid">
+                        <div class="form-group span-full">
+                            <label>Cliente</label>
+                            <div class="client-search">
+                                <input type="text" name="clienteBusca" placeholder="Digite para buscar cliente..." autocomplete="off" />
+                                <input type="hidden" name="cliente" />
+                                <div class="client-suggestions"></div>
+                            </div>
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Data</label>
+                            <input type="date" name="data" required>
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Validade (1 ano)</label>
+                            <input type="date" name="dataFinal" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                
+
+                <div class="form-section">
+                    <h4>Itens do Orçamento</h4>
+                    <div class="orcamento-items">
+                        <div class="item-header">
+                            <div class="item-controls">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('peca')">
+                                    <i class="fas fa-wrench"></i> Adicionar Peça
+                                </button>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('servico')">
+                                    <i class="fas fa-tools"></i> Adicionar Serviço
+                                </button>
+                            </div>
+                        </div>
+                        <div id="orcamento-items-list">
+                            <!-- Itens serão adicionados aqui -->
+                        </div>
+                        
+                        <div class="total-section">
+                            <div class="total-breakdown">
+                                <div class="total-line"><span>Subtotal:</span><span>R$ <span id="orcamento-subtotal">0,00</span></span></div>
+                                
+                                <div class="total-line total-final"><span>Total:</span><span>R$ <span id="orcamento-total">0,00</span></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observação Section -->
+                <div class="form-section">
+                    <h4>Observação</h4>
+                    <div class="form-grid">
+                        <div class="form-group span-full">
+                            <label class="label-optional">Observação (Opcional)</label>
+                            <textarea name="observacao" rows="3" placeholder="Opcional"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('orcamento-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Orçamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pré-visualização de Impressão -->
+    <div class="modal modal-xl" id="print-preview-modal">
+        <div class="modal-content print-preview">
+            <div class="print-header">
+                <h3>Pré-visualização do Orçamento</h3>
+                <div class="print-actions">
+                    <button class="btn btn-secondary" onclick="sendOrcamentoEmailFromPreview()">
+                        <i class="fas fa-envelope"></i>
+                        Email
+                    </button>
+                    <button class="btn btn-whatsapp" onclick="sendOrcamentoWhatsAppFromPreview()">
+                        <i class="fab fa-whatsapp"></i>
+                        WhatsApp
+                    </button>
+                    <button class="btn btn-primary" onclick="printDocument()">
+                        <i class="fas fa-print"></i>
+                        Imprimir
+                    </button>
+                    <button class="modal-close" onclick="closeModal('print-preview-modal')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="orcamento-preview" id="orcamento-preview-content">
+                <!-- Conteúdo será inserido aqui pelo JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="footer.js"></script>
+</body>
+</html>

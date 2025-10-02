@@ -13,14 +13,16 @@
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="logo">
-                <div class="logo-header">
-                    <img src="logo/logo.png" alt="Logo da Retífica" class="brand-logo" />
-                    <div class="brand-greeting">
-                        <span class="hello">Olá</span>
-                        <span id="current-username">Admin</span>
-                    </div>
+                <div class="logo-rect">
+                    <img src="img/logo.png" alt="Logo da Retífica" class="brand-logo-rect" />
                 </div>
-                <div id="device-status-badge" class="device-badge" title="Status do dispositivo"></div>
+                <div class="brand-greeting brand-stack">
+                    <div class="hello">Olá <span id="current-username">Admin</span></div>
+                </div>
+                <div class="brand-clock" id="sidebar-clock" aria-live="polite" title="Horário de São Paulo (WorldTimeAPI)">
+                    <span class="clock-time" id="clock-time">--:--</span>
+                    <span class="clock-date" id="clock-date">--/--/----</span>
+                </div>
             </div>
             
             <ul class="nav-menu">
@@ -44,9 +46,9 @@
                     <i class="fas fa-tools"></i>
                     <span>Serviços</span>
                 </li>
-                <li class="nav-item" data-section="dispositivos">
-                    <i class="fas fa-print"></i>
-                    <span>Dispositivos</span>
+                <li class="nav-item" data-section="configuracoes">
+                    <i class="fas fa-cog"></i>
+                    <span>Configurações</span>
                 </li>
             </ul>
             <div class="sidebar-footer">
@@ -80,7 +82,7 @@
             <!-- Dashboard Section -->
             <section class="section active" id="dashboard">
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card" role="button" tabindex="0" data-goto="orcamentos">
                         <div class="stat-icon">
                             <i class="fas fa-file-invoice"></i>
                         </div>
@@ -90,7 +92,7 @@
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card" role="button" tabindex="0" data-goto="clientes">
                         <div class="stat-icon">
                             <i class="fas fa-users"></i>
                         </div>
@@ -99,14 +101,24 @@
                             <p>Clientes</p>
                         </div>
                     </div>
-                    
-                    <div class="stat-card">
+
+                    <div class="stat-card" role="button" tabindex="0" data-goto="pecas">
                         <div class="stat-icon">
-                            <i class="fas fa-dollar-sign"></i>
+                            <i class="fas fa-wrench"></i>
                         </div>
                         <div class="stat-info">
-                            <h3 id="valor-total">R$ 0,00</h3>
-                            <p>Valor Total</p>
+                            <h3 id="total-pecas">0</h3>
+                            <p>Peças</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card" role="button" tabindex="0" data-goto="servicos">
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-servicos">0</h3>
+                            <p>Serviços</p>
                         </div>
                     </div>
                 </div>
@@ -123,12 +135,16 @@
                                     <th>Valor</th>
                                     <th>Status</th>
                                     <th>Ações</th>
+                                    <th>Links</th>
                                 </tr>
                             </thead>
                             <tbody id="recent-orcamentos-list">
                                 <!-- Dados serão inseridos aqui pelo JavaScript -->
                             </tbody>
                         </table>
+                    </div>
+                    <div class="recent-actions">
+                        <a href="#" class="see-all-link" onclick="navigateToSection('orcamentos'); return false;">Ver Tudo</a>
                     </div>
                 </div>
             </section>
@@ -149,8 +165,10 @@
                         <option value="">Todos os Status</option>
                         <option value="pendente">Pendente</option>
                         <option value="aprovado">Aprovado</option>
-                        <option value="rejeitado">Rejeitado</option>
                     </select>
+                    <input type="date" class="filter-input" id="date-start" title="Data inicial" placeholder="Data inicial" />
+                    <input type="date" class="filter-input" id="date-end" title="Data final" placeholder="Data final" />
+                    <button type="button" class="btn btn-clear-filters" id="clear-orcamentos-filters">Limpar filtros</button>
                 </div>
 
                 <div class="table-container">
@@ -162,7 +180,8 @@
                                 <th>Data</th>
                                 <th>Valor</th>
                                 <th>Status</th>
-                                <th>Ações</th>
+                                    <th>Ações</th>
+                                    <th>Links</th>
                             </tr>
                         </thead>
                         <tbody id="orcamentos-list">
@@ -264,98 +283,108 @@
                 </div>
             </section>
 
-            <!-- Dispositivos Section -->
-            <section class="section" id="dispositivos">
+            <!-- Configurações Section -->
+            <section class="section" id="configuracoes">
                 <div class="section-header">
-                    <h2>Dispositivos</h2>
-                    <div>
-                        <button class="btn btn-primary" id="add-device-btn" onclick="openModal('device-scan-modal')" style="margin-right:8px;">
-                            <i class="fas fa-plus"></i>
-                            Adicionar
-                        </button>
-                        <button class="btn btn-secondary" id="scan-devices-btn">
-                            <i class="fas fa-sync-alt"></i>
-                            Atualizar
-                        </button>
-                    </div>
+                    <h2>Configurações</h2>
                 </div>
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <div class="settings-section">
+                            <h3 class="settings-title">Identidade Visual</h3>
+                            <div class="logo-area">
+                                <!-- Prévia grande centralizada (no topo) -->
+                                <div class="logo-preview" id="logo-preview" aria-live="polite">
+                                    <img id="logo-preview-img" alt="Prévia do Logo" />
+                                </div>
+                                <!-- Linha de opções: Upload ao lado de logos pré-definidas -->
+                                <div class="logo-options-row" id="logo-options-row">
+                                    <div class="upload-box" id="logo-drop" onclick="document.getElementById('settings-logo').click()" role="button">
+                                        <div class="upload-icon"><i class="fas fa-image"></i></div>
+                                        <div class="upload-text">
+                                            <strong>Enviar logo</strong>
+                                            <span>PNG ou JPG. Recomendado fundo transparente</span>
+                                        </div>
+                                        <input type="file" id="settings-logo" accept="image/*" style="display:none" />
+                                    </div>
+                                    <button type="button" class="logo-preset" data-preset="1" aria-label="Logo preset 1">
+                                        <img src="img/logo.png" alt="Logo 1" />
+                                    </button>
+                                    <button type="button" class="logo-preset" data-preset="2" aria-label="Logo preset 2">
+                                        <img src="img/logo2.png" alt="Logo 2" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Tipo</th>
-                                <th>Status</th>
-                                <th>Padrão</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dispositivos-list">
-                            <!-- Dispositivos serão inseridos aqui pelo JavaScript -->
-                        </tbody>
-                    </table>
+                        <div class="settings-section">
+                            <h3 class="settings-title">Dados da Empresa</h3>
+                            <div class="form-grid">
+                                <div class="form-group span-2">
+                                    <label>Nome da Empresa</label>
+                                    <input type="text" id="settings-nome" placeholder="Ex.: Janio Retífica" />
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Endereço</label>
+                                    <input type="text" id="settings-endereco" placeholder="Rua, número - bairro - cidade/UF" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Telefone</label>
+                                    <input type="text" id="settings-telefone" placeholder="(11) 3456-7890" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" id="settings-email" placeholder="contato@empresa.com.br" />
+                                </div>
+                                <div class="form-group">
+                                    <label>CNPJ</label>
+                                    <input type="text" id="settings-cnpj" placeholder="00.000.000/0000-00" />
+                                </div>
+                                <div class="form-group">
+                                    <label>CEP</label>
+                                    <input type="text" id="settings-cep" placeholder="00000-000" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn btn-secondary" id="settings-reset">Restaurar padrão</button>
+                            <div class="spacer"></div>
+                            <button class="btn btn-primary" id="settings-save"><i class="fas fa-save"></i> Salvar alterações</button>
+                        </div>
+                    </div>
+
+                    <aside class="account-card" id="account-card">
+                        <div class="settings-section">
+                            <h3 class="settings-title">Conta do Usuário</h3>
+                            <div class="form-grid">
+                                <div class="form-group span-2">
+                                    <label>Nome de usuário</label>
+                                    <input type="text" id="account-username" placeholder="Ex.: Admin" />
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Senha atual</label>
+                                    <input type="password" id="account-old-password" placeholder="Informe sua senha atual" autocomplete="current-password" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Nova senha</label>
+                                    <input type="password" id="account-new-password" placeholder="Mín. 8 caracteres" autocomplete="new-password" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Confirmar nova senha</label>
+                                    <input type="password" id="account-confirm-password" placeholder="Repita a nova senha" autocomplete="new-password" />
+                                </div>
+                                <div class="form-group span-full">
+                                    <small class="input-hint" id="account-hint">Por segurança, confirme a senha atual para alterá-la.</small>
+                                </div>
+                            </div>
+                            <div class="settings-actions">
+                                <button class="btn btn-primary" id="account-save"><i class="fas fa-save"></i> Salvar conta</button>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
             </section>
-            
-            <!-- Modal Editar Dispositivo -->
-            <div class="modal" id="device-edit-modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Editar Dispositivo</h3>
-                        <button class="modal-close" onclick="closeModal('device-edit-modal')">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <form id="dispositivo-form" onsubmit="handleDispositivoSubmit(event)">
-                        <div class="form-grid">
-                            <div class="form-group span-full">
-                                <label>Nome</label>
-                                <input type="text" name="nome" placeholder="Ex.: Impressora Térmica BT" required />
-                            </div>
-                        </div>
-                        <div class="modal-actions">
-                            <button type="button" class="btn btn-secondary" onclick="closeModal('device-edit-modal')">Cancelar</button>
-                            <button type="submit" class="btn btn-primary">Salvar</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Modal Buscar Dispositivos (Simulado) -->
-            <div class="modal modal-large" id="device-scan-modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Adicionar Dispositivo</h3>
-                        <button class="modal-close" onclick="closeModal('device-scan-modal')">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="scan-container">
-                        <div class="scan-search">
-                            <i class="fas fa-magnifying-glass"></i>
-                            <input type="text" id="scan-search" placeholder="Procurar Dispositivos" oninput="filterScanResults(this.value)" onkeydown="if(event.key==='Enter'){ startBluetoothScan(); }" />
-                            <div class="search-actions">
-                                <button class="btn btn-secondary" onclick="startBluetoothScan()">
-                                    <i class="fas fa-search"></i>
-                                    Buscar
-                                </button>
-                            </div>
-                        </div>
-                        <div id="scan-status" class="scan-status muted">Pronto para buscar dispositivos Bluetooth</div>
-                        <div id="scan-loading" class="scan-loading" style="display:none;">
-                            <div class="spinner"></div>
-                            <div>Procurando dispositivos próximos…</div>
-                        </div>
-                        <div id="scan-results" class="scan-results">
-                            <!-- resultados simulados aparecerão aqui -->
-                        </div>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('device-scan-modal')">Fechar</button>
-                    </div>
-                </div>
-            </div>
         </main>
     </div>
 
@@ -388,8 +417,23 @@
                         <input type="text" name="documento">
                     </div>
                     <div class="form-group">
+                        <label>CEP</label>
+                        <div class="cep-row">
+                            <input type="text" name="cep" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code">
+                            <button type="button" class="btn btn-sm btn-secondary" id="buscar-cep-btn">Buscar</button>
+                        </div>
+                        <small class="input-hint" id="cep-hint">Digite o CEP (8 dígitos)</small>
+                    </div>
+                    <div class="form-group">
                         <label>Endereço</label>
-                        <input type="text" name="endereco">
+                        <div class="address-autocomplete">
+                            <input type="text" name="endereco" placeholder="Rua, bairro - cidade/UF" autocomplete="off">
+                            <div class="address-suggestions" id="cliente-endereco-suggestions"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="text" name="numero" placeholder="Ex.: 123">
                     </div>
                     <div class="form-group">
                         <label>Cidade</label>
@@ -545,28 +589,34 @@
     <!-- Modal Pré-visualização de Impressão -->
     <div class="modal modal-xl" id="print-preview-modal">
         <div class="modal-content print-preview">
-            <div class="print-header">
-                <h3>Pré-visualização do Orçamento</h3>
-                <div class="print-actions">
-                    <button class="btn btn-secondary" onclick="sendOrcamentoEmailFromPreview()">
+            <div class="print-header minimal">
+                <h3>Pré-visualização</h3>
+                <div class="print-actions minimal">
+                    <button class="icon-btn" onclick="sendOrcamentoEmailFromPreview()" title="Enviar por email">
                         <i class="fas fa-envelope"></i>
-                        Email
                     </button>
-                    <button class="btn btn-whatsapp" onclick="sendOrcamentoWhatsAppFromPreview()">
-                        <i class="fab fa-whatsapp"></i>
-                        WhatsApp
+                    <button class="icon-btn" onclick="downloadOrcamentoFromPreview()" title="Baixar (PDF/HTML)">
+                        <i class="fas fa-download"></i>
                     </button>
-                    <button class="btn btn-primary" onclick="printDocument()">
+                    <button class="icon-btn" onclick="printDocument()" title="Imprimir">
                         <i class="fas fa-print"></i>
-                        Imprimir
                     </button>
-                    <button class="modal-close" onclick="closeModal('print-preview-modal')">
+                    <button class="icon-btn icon-btn-close" onclick="closeModal('print-preview-modal')" title="Fechar">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             <div class="orcamento-preview" id="orcamento-preview-content">
                 <!-- Conteúdo será inserido aqui pelo JavaScript -->
+            </div>
+            <div class="print-footer">
+                <div class="zoom-controls" role="group" aria-label="Zoom">
+                    <button type="button" class="btn btn-zoom" id="zoom-out" title="Diminuir">−</button>
+                    <button type="button" class="btn btn-zoom" id="zoom-fit" title="Ajustar à janela">Ajustar</button>
+                    <span class="zoom-level" id="zoom-level" aria-live="polite">100%</span>
+                    <button type="button" class="btn btn-zoom" id="zoom-100" title="Tamanho real">100%</button>
+                    <button type="button" class="btn btn-zoom" id="zoom-in" title="Aumentar">+</button>
+                </div>
             </div>
         </div>
     </div>

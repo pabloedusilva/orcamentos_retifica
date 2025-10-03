@@ -803,8 +803,18 @@ function openModal(modalId) {
     if (modalId === 'orcamento-modal') {
         initClienteSearch();
         clearOrcamentoItems();
-        // garantir data inicial e validade preenchidas
+        
+        // Restaurar título para novo orçamento e limpar campos de veículo
+        document.querySelector('#orcamento-modal h3').textContent = 'Novo Orçamento';
         const form = document.getElementById('orcamento-form');
+        const carroInput = form?.querySelector('input[name="carro"]');
+        const placaInput = form?.querySelector('input[name="placa"]');
+        const incEstInput = form?.querySelector('input[name="incEst"]');
+        if (carroInput) carroInput.value = '';
+        if (placaInput) placaInput.value = '';
+        if (incEstInput) incEstInput.value = '';
+        
+        // garantir data inicial e validade preenchidas
         const dateInput = form?.querySelector('input[name="data"]');
         const endDateInput = form?.querySelector('input[name="dataFinal"]');
         if (dateInput) {
@@ -1229,6 +1239,9 @@ function handleOrcamentoSubmit(e) {
         data: formData.get('data'),
         dataFinal: formData.get('dataFinal') || '',
         observacao: (formData.get('observacao') || '').toString().trim(),
+        carro: (formData.get('carro') || '').toString().trim(),
+        placa: (formData.get('placa') || '').toString().trim(),
+        incEst: (formData.get('incEst') || '').toString().trim(),
         items: items,
         subtotal: subtotal,
         total: total,
@@ -1605,6 +1618,14 @@ function editOrcamento(id) {
     // Observação
     const obs = form.querySelector('textarea[name="observacao"]');
     if (obs) obs.value = orcamento.observacao || '';
+    
+    // Campos do veículo
+    const carroInput = form.querySelector('input[name="carro"]');
+    const placaInput = form.querySelector('input[name="placa"]');
+    const incEstInput = form.querySelector('input[name="incEst"]');
+    if (carroInput) carroInput.value = orcamento.carro || '';
+    if (placaInput) placaInput.value = orcamento.placa || '';
+    if (incEstInput) incEstInput.value = orcamento.incEst || '';
     
     document.querySelector('#orcamento-modal h3').textContent = 'Editar Orçamento';
     openModal('orcamento-modal');
@@ -2060,6 +2081,92 @@ function getPreviewOrcamentoId() {
     return match ? match[1] : null;
 }
 
+function getCurrentOrcamentoCliente() {
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) return null;
+    
+    const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento || !orcamento.clienteId) return null;
+    
+    return state.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+}
+
+function getCurrentViaType() {
+    // Detectar qual via está ativa no momento
+    const activeBtn = document.querySelector('.btn-via.active');
+    if (!activeBtn) return 'vendedor'; // default
+    
+    const onclickAttr = activeBtn.getAttribute('onclick');
+    const match = onclickAttr.match(/switchViaPreview\('([^']+)'\)/);
+    return match ? match[1] : 'vendedor';
+}
+
+async function convertImageToBase64(imgSrc) {
+    return new Promise((resolve, reject) => {
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = this.naturalWidth;
+                    canvas.height = this.naturalHeight;
+                    ctx.drawImage(this, 0, 0);
+                    resolve(canvas.toDataURL('image/png'));
+                } catch (canvasError) {
+                    console.warn('Erro no canvas:', canvasError);
+                    resolve(imgSrc); // Retorna a src original
+                }
+            };
+            
+            img.onerror = function(error) {
+                console.warn('Erro ao carregar imagem:', error);
+                resolve(imgSrc); // Retorna a src original se falhar
+            };
+            
+            // Timeout para evitar travamentos
+            setTimeout(() => {
+                resolve(imgSrc);
+            }, 3000);
+            
+            img.src = imgSrc;
+        } catch (error) {
+            console.warn('Erro geral:', error);
+            resolve(imgSrc);
+        }
+    });
+}
+
+// Alternar entre as diferentes vias na pré-visualização
+function switchViaPreview(tipoVia) {
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) return;
+    
+    const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) return;
+    
+    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    
+    // Gerar HTML da via selecionada
+    const viaHtml = generateOrcamentoPreview(orcamento, cliente, tipoVia);
+    
+    // Atualizar conteúdo da pré-visualização
+    document.getElementById('orcamento-preview-content').innerHTML = viaHtml;
+    
+    // Atualizar estado ativo dos botões
+    document.querySelectorAll('.btn-via').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Marcar o botão ativo
+    const activeBtn = document.querySelector(`.btn-via[onclick="switchViaPreview('${tipoVia}')"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+    }
+}
+
 function buildOrcamentoText(orcamento) {
     const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
     const validadeIso = orcamento.dataFinal || (() => {
@@ -2102,26 +2209,250 @@ function sendOrcamentoEmailFromPreview() {
 }
 
 function downloadOrcamentoFromPreview() {
-    // Baixar o conteúdo atual da prévia como um arquivo HTML auto-contido (simples e offline-friendly)
-    const docEl = document.querySelector('.orcamento-document');
-    if (!docEl) return;
-    const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Orcamento</title><style>${getInlineStyles()}</style></head><body>${docEl.outerHTML}</body></html>`;
-    const blob = new Blob([content], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const id = getPreviewOrcamentoId() || 'orcamento';
-    a.href = url;
-    a.download = `orcamento-${id}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Gerar PDF da via selecionada e baixar localmente
+    try {
+        const orcamentoId = getPreviewOrcamentoId();
+        if (!orcamentoId) return;
+        
+        const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+        if (!orcamento) return;
+        
+        const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+        const viaType = getCurrentViaType();
+        
+        // Gerar HTML da via específica
+        const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
+        
+        // Criar elemento temporário com o HTML da via
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = viaHtml;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '0';
+        tempDiv.style.width = '210mm';
+        tempDiv.style.backgroundColor = '#ffffff';
+        
+        // Remover imagens que podem causar problemas de CORS
+        const images = tempDiv.querySelectorAll('img');
+        images.forEach(img => {
+            // Se não for base64, substituir por placeholder ou remover
+            if (img.src && !img.src.startsWith('data:')) {
+                img.style.display = 'none';
+            }
+        });
+        
+        document.body.appendChild(tempDiv);
+        
+        // Aguardar um pouco para o conteúdo carregar e gerar PDF
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(tempDiv, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                });
+                
+                // Remover elemento temporário
+                document.body.removeChild(tempDiv);
+                
+                const imgData = canvas.toDataURL('image/png', 0.9);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                const imgWidth = 210;
+                const pageHeight = 295;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight;
+                
+                let position = 0;
+                
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+                
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+                
+                const id = getPreviewOrcamentoId() || 'orcamento';
+                const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+                const fileName = `orcamento-${clienteNome}-${id}-${viaType}.pdf`;
+                
+                pdf.save(fileName);
+            } catch (error) {
+                console.error('Erro ao gerar PDF:', error);
+                alert('Erro ao gerar PDF. Tente novamente.');
+                if (document.body.contains(tempDiv)) {
+                    document.body.removeChild(tempDiv);
+                }
+            }
+        }, 300);
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar PDF. Tente novamente.');
+    }
+}
+
+async function shareOrcamentoWhatsApp() {
+    // Gerar PDF da via selecionada e compartilhar via WhatsApp
+    try {
+        const orcamentoId = getPreviewOrcamentoId();
+        if (!orcamentoId) return;
+        
+        const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+        if (!orcamento) return;
+        
+        const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+        const viaType = getCurrentViaType();
+        
+        // Gerar HTML da via específica
+        const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
+        
+        // Criar elemento temporário com o HTML da via
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = viaHtml;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '0';
+        tempDiv.style.width = '210mm';
+        tempDiv.style.backgroundColor = '#ffffff';
+        
+        // Remover imagens que podem causar problemas de CORS
+        const images = tempDiv.querySelectorAll('img');
+        images.forEach(img => {
+            // Se não for base64, substituir por placeholder ou remover
+            if (img.src && !img.src.startsWith('data:')) {
+                img.style.display = 'none';
+            }
+        });
+        
+        document.body.appendChild(tempDiv);
+        
+        // Aguardar um pouco para o conteúdo carregar
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const canvas = await html2canvas(tempDiv, {
+            scale: 3, // Aumentei a escala para melhor qualidade
+            useCORS: false,
+            allowTaint: false,
+            backgroundColor: '#ffffff',
+            logging: false,
+            foreignObjectRendering: false,
+            width: tempDiv.scrollWidth,
+            height: tempDiv.scrollHeight
+        });
+        
+        // Remover elemento temporário
+        document.body.removeChild(tempDiv);
+        
+        const imgData = canvas.toDataURL('image/png', 1.0); // Qualidade máxima
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        const imgWidth = 210;
+        const pageHeight = 295;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        
+        let position = 0;
+        
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        const id = getPreviewOrcamentoId() || 'orcamento';
+        const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+        const fileName = `orcamento-${clienteNome}-${id}-${viaType}.pdf`;
+        
+        // Converter PDF para blob
+        const pdfBlob = pdf.output('blob');
+        
+        // Simular upload para servidor (aqui você implementaria a chamada real para seu backend)
+        const serverUrl = await uploadPdfToServer(pdfBlob, fileName);
+        
+        // Preparar mensagem para WhatsApp
+        const clienteNomeReal = cliente ? cliente.nome : 'Cliente';
+        const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
+        const message = `Olá ${clienteNomeReal}! Segue o orçamento #${id} (Via ${viaNames[viaType]}). Você pode visualizar acessando: ${serverUrl}`;
+        
+        // Abrir WhatsApp com a mensagem
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+        
+    } catch (error) {
+        console.error('Erro ao compartilhar no WhatsApp:', error);
+        alert('Erro ao compartilhar no WhatsApp. Tente novamente.');
+    }
+}
+
+async function uploadPdfToServer(pdfBlob, fileName) {
+    /* 
+    IMPLEMENTAÇÃO DO SERVIDOR NECESSÁRIA:
+    
+    Para que o compartilhamento via WhatsApp funcione completamente, você precisa:
+    
+    1. Criar um endpoint no seu servidor (exemplo: /api/upload-pdf) que:
+       - Receba o arquivo PDF via FormData
+       - Salve o arquivo em uma pasta pública (ex: /public/pdfs/)
+       - Sobrescreva arquivos existentes com mesmo nome
+       - Retorne a URL pública do arquivo
+    
+    2. Exemplo de implementação backend (Node.js/Express):
+    
+    app.post('/api/upload-pdf', upload.single('pdf'), (req, res) => {
+        const fileName = req.file.originalname;
+        const filePath = path.join(__dirname, 'public/pdfs', fileName);
+        
+        // Mover arquivo para pasta pública
+        fs.rename(req.file.path, filePath, (err) => {
+            if (err) return res.status(500).json({ error: 'Erro ao salvar' });
+            
+            const publicUrl = `${req.protocol}://${req.get('host')}/pdfs/${fileName}`;
+            res.json({ url: publicUrl });
+        });
+    });
+    
+    3. Descomente e configure a chamada fetch abaixo
+    */
+    
+    try {
+        // Simula uma chamada para o servidor
+        const formData = new FormData();
+        formData.append('pdf', pdfBlob, fileName);
+        formData.append('overwrite', 'true'); // Para sobrescrever arquivo existente
+        
+        // DESCOMENTE E CONFIGURE ESTAS LINHAS QUANDO TIVER O SERVIDOR:
+        // const response = await fetch('/api/upload-pdf', {
+        //     method: 'POST',
+        //     body: formData
+        // });
+        // const result = await response.json();
+        // return result.url;
+        
+        // Por enquanto, retornamos um URL simulado para teste
+        const timestamp = new Date().getTime();
+        return `https://seudominio.com/pdfs/${fileName}?v=${timestamp}`;
+        
+    } catch (error) {
+        console.error('Erro ao fazer upload do PDF:', error);
+        throw error;
+    }
 }
 
 // Helpers removidos da visualização; ações serão oferecidas no modal de pré-visualização
 
 // Gerar HTML da pré-visualização do orçamento
-function generateOrcamentoPreview(orcamento, cliente) {
+function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
     const hoje = new Date();
     const c = state.company || {};
     const dataFormatada = formatDate(orcamento.data);
@@ -2156,7 +2487,11 @@ function generateOrcamentoPreview(orcamento, cliente) {
         cidade: 'N/A'
     };
 
-    // Gerar linhas dos itens de forma mais compacta
+    // Determinar configurações baseado no tipo de via
+    const showValues = tipoVia !== 'funcionarios'; // Funcionários não veem valores
+    const isClientCopy = tipoVia === 'cliente'; // Via do cliente tem marca "CÓPIA"
+    
+    // Gerar linhas dos itens baseado no tipo de via
     let itemsHtml = '';
     let subtotal = 0;
 
@@ -2164,27 +2499,54 @@ function generateOrcamentoPreview(orcamento, cliente) {
         const itemSubtotal = item.quantidade * item.preco;
         subtotal += itemSubtotal;
 
-        itemsHtml += `
-            <tr>
-                <td>
-                    <div class="item-description">
-                        <div class="item-name">${item.nome}</div>
-                        <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
-                    </div>
-                </td>
-                <td class="text-center">${item.quantidade}</td>
-                <td class="text-right font-mono">R$ ${item.preco.toFixed(2).replace('.', ',')}</td>
-                <td class="text-right font-mono">R$ ${itemSubtotal.toFixed(2).replace('.', ',')}</td>
-            </tr>
-        `;
+        if (tipoVia === 'funcionarios') {
+            // Via dos funcionários: sem valores, apenas descrições e quantidades
+            itemsHtml += `
+                <tr>
+                    <td>
+                        <div class="item-description">
+                            <div class="item-name">${item.nome}</div>
+                            <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">${item.quantidade}</td>
+                    <td class="text-center status-checkbox">☐ OK</td>
+                    <td class="funcionario-obs">____________</td>
+                </tr>
+            `;
+        } else {
+            // Via do vendedor e cliente: com valores completos
+            itemsHtml += `
+                <tr>
+                    <td>
+                        <div class="item-description">
+                            <div class="item-name">${item.nome}</div>
+                            <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">${item.quantidade}</td>
+                    <td class="text-right font-mono">R$ ${item.preco.toFixed(2).replace('.', ',')}</td>
+                    <td class="text-right font-mono">R$ ${itemSubtotal.toFixed(2).replace('.', ',')}</td>
+                </tr>
+            `;
+        }
     });
 
     // Veículo removido do layout
 
     // Desconto removido
 
+    // Definir título da via
+    const viaTitle = {
+        'vendedor': 'VIA DO VENDEDOR',
+        'cliente': 'VIA DO CLIENTE',
+        'funcionarios': 'VIA PARA SERVIÇOS'
+    }[tipoVia] || 'VIA DO VENDEDOR';
+
     return `
-        <div class="orcamento-document">
+        <div class="orcamento-document via-${tipoVia}">
+            ${isClientCopy ? '<div class="watermark-copia">CÓPIA</div>' : ''}
+            
             <!-- Cabeçalho Minimalista -->
             <div class="orcamento-header">
                 <div class="company-info">
@@ -2199,6 +2561,7 @@ function generateOrcamentoPreview(orcamento, cliente) {
                 </div>
                 <div class="orcamento-info">
                     <div class="orcamento-number">Orçamento #${orcamento.id}</div>
+                    <div class="via-identificacao">${viaTitle}</div>
                     <div class="orcamento-details">
                         <div class="detail-row">
                             <span class="detail-label">Data:</span>
@@ -2247,16 +2610,45 @@ function generateOrcamentoPreview(orcamento, cliente) {
                 </div>
             </div>
 
-            <!-- Itens do Orçamento Compacto -->
+            <!-- Dados do Veículo -->
+            ${(orcamento.carro || orcamento.placa || orcamento.incEst) ? `
+            <div class="cliente-section">
+                <h3 class="section-title">Veículo</h3>
+                <div class="cliente-card">
+                    <div class="cliente-grid">
+                        ${orcamento.carro ? `
+                        <div class="cliente-field">
+                            <div class="field-label">Carro</div>
+                            <div class="field-value">${orcamento.carro}</div>
+                        </div>
+                        ` : ''}
+                        ${orcamento.placa ? `
+                        <div class="cliente-field">
+                            <div class="field-label">Placa</div>
+                            <div class="field-value">${orcamento.placa}</div>
+                        </div>
+                        ` : ''}
+                        ${orcamento.incEst ? `
+                        <div class="cliente-field">
+                            <div class="field-label">Inc. Est. / CIC</div>
+                            <div class="field-value">${orcamento.incEst}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Itens do Orçamento -->
             <div class="itens-section">
-                <h3 class="section-title">Itens</h3>
+                <h3 class="section-title">${tipoVia === 'funcionarios' ? 'Peças e Serviços a Executar' : 'Itens'}</h3>
                 <table class="itens-table">
                     <thead>
                         <tr>
                             <th>Descrição</th>
                             <th class="text-center">Qtd</th>
-                            <th class="text-right">Unit.</th>
-                            <th class="text-right">Total</th>
+                            ${showValues ? '<th class="text-right">Unit.</th>' : '<th class="text-center">Conferido</th>'}
+                            ${showValues ? '<th class="text-right">Total</th>' : '<th class="text-center">Observações</th>'}
                         </tr>
                     </thead>
                     <tbody>
@@ -2264,7 +2656,8 @@ function generateOrcamentoPreview(orcamento, cliente) {
                     </tbody>
                 </table>
                 
-                <!-- Totais Simplificados -->
+                ${showValues ? `
+                <!-- Totais -->
                 <div class="totals-section">
                     <div class="totals-card">
                         <table class="totals-table">
@@ -2280,9 +2673,24 @@ function generateOrcamentoPreview(orcamento, cliente) {
                         </table>
                     </div>
                 </div>
+                ` : `
+                <!-- Área para Anotações dos Funcionários -->
+                <div class="funcionarios-notes">
+                    <h4>Anotações dos Serviços:</h4>
+                    <div class="notes-lines">
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                        <div class="note-line"></div>
+                    </div>
+                </div>
+                `}
             </div>
 
-            ${orcamento.observacao ? `
+            ${orcamento.observacao && tipoVia !== 'funcionarios' ? `
             <div class="itens-section">
                 <h3 class="section-title">Observação</h3>
                 <div class="cliente-card" style="padding:16px;">
@@ -2290,6 +2698,7 @@ function generateOrcamentoPreview(orcamento, cliente) {
                 </div>
             </div>` : ''}
 
+            ${tipoVia !== 'funcionarios' ? `
             <!-- Assinaturas -->
             <div class="assinatura-section">
                 <h3 class="section-title">Assinaturas</h3>
@@ -2340,26 +2749,48 @@ function generateOrcamentoPreview(orcamento, cliente) {
                     AUTORIZO A FIRMA EFETUAR OS SERVIÇOS RELACIONADOS NESTA NOTA.
                 </div>
             </div>
+            ` : ''}
         </div>
     `;
 }
 
-// Função para imprimir documento
+// Função para gerar todas as 3 vias do documento
+function generateAllVias(orcamento, cliente) {
+    const viaVendedor = generateOrcamentoPreview(orcamento, cliente, 'vendedor');
+    const viaCliente = generateOrcamentoPreview(orcamento, cliente, 'cliente');
+    const viaFuncionarios = generateOrcamentoPreview(orcamento, cliente, 'funcionarios');
+    
+    return `
+        ${viaVendedor}
+        <div class="page-break"></div>
+        ${viaCliente}
+        <div class="page-break"></div>
+        ${viaFuncionarios}
+    `;
+}
+
+// Função para imprimir documento (3 vias)
 function printDocument() {
+    // Obter dados do orçamento atual
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) {
+        alert('Erro: Não foi possível identificar o orçamento para impressão');
+        return;
+    }
+    
+    const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) {
+        alert('Orçamento não encontrado');
+        return;
+    }
+    
+    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    
+    // Gerar todas as 3 vias
+    const todasVias = generateAllVias(orcamento, cliente);
+    
     // Criar uma janela temporária para impressão
     const printWindow = window.open('', '_blank');
-    // Clonar o conteúdo removendo qualquer transformação de zoom aplicada na prévia
-    const pageEl = document.querySelector('.orcamento-document');
-    let documentContent = '';
-    if (pageEl) {
-        const clone = pageEl.cloneNode(true);
-        // Remover zoom da prévia (transform e origem)
-        clone.style.transform = '';
-        clone.style.transformOrigin = '';
-        documentContent = clone.outerHTML;
-    } else {
-        documentContent = '';
-    }
     
     const printContent = `
         <!DOCTYPE html>
@@ -2375,7 +2806,7 @@ function printDocument() {
             </style>
         </head>
         <body>
-            ${documentContent}
+            ${todasVias}
         </body>
         </html>
     `;
@@ -2812,6 +3243,131 @@ function getInlineStyles() {
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Estilos específicos para as vias */
+        .page-break {
+            page-break-before: always;
+            break-before: page;
+        }
+
+        /* Identificação da via */
+        .via-identificacao {
+            font-size: 10px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            border: 1px solid #ddd;
+        }
+
+        /* Watermark CÓPIA para via do cliente */
+        .watermark-copia {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 72px;
+            font-weight: 700;
+            color: rgba(0, 0, 0, 0.08);
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            z-index: 1;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* Posicionamento relativo para permitir watermark */
+        .via-cliente {
+            position: relative;
+        }
+
+        /* Estilos para via dos funcionários */
+        .via-funcionarios .itens-table th:nth-child(3),
+        .via-funcionarios .itens-table th:nth-child(4) {
+            background: #e8e8e8;
+            color: #666;
+        }
+
+        .status-checkbox {
+            font-family: 'Arial', sans-serif;
+            font-size: 10px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .funcionario-obs {
+            font-style: italic;
+            color: #999;
+            border-bottom: 1px dotted #ccc;
+            min-height: 12px;
+        }
+
+        .funcionarios-notes {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .funcionarios-notes h4 {
+            font-size: 10px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .notes-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .note-line {
+            height: 20px;
+            border-bottom: 1px solid #ccc;
+            width: 100%;
+        }
+
+        /* Cores neutras para todas as vias */
+        .via-vendedor .via-identificacao,
+        .via-cliente .via-identificacao,
+        .via-funcionarios .via-identificacao {
+            background: #f5f5f5;
+            color: #666;
+            border-color: #ddd;
+        }
+
+        /* Ajustes de impressão para múltiplas páginas */
+        @page {
+            margin: 1cm;
+            size: A4;
+        }
+
+        @media print {
+            .orcamento-document {
+                page-break-inside: avoid;
+                margin-bottom: 20px;
+            }
+            
+            .page-break {
+                page-break-before: always;
+            }
+            
+            .watermark-copia {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     `;
 }

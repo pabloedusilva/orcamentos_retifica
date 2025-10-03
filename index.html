@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Bibliotecas para geração de PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
     <div class="app">
@@ -546,7 +549,23 @@
                     </div>
                 </div>
 
-                
+                <div class="form-section">
+                    <h4>Informações do Veículo</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Carro</label>
+                            <input type="text" name="carro" placeholder="Ex: Honda Civic, Toyota Corolla..." />
+                        </div>
+                        <div class="form-group">
+                            <label>Placa</label>
+                            <input type="text" name="placa" placeholder="Ex: ABC-1234" maxlength="8" />
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Inc. Est. / CIC</label>
+                            <input type="text" name="incEst" placeholder="Inscrição Estadual ou CIC" />
+                        </div>
+                    </div>
+                </div>
 
                 <div class="form-section">
                     <h4>Itens do Orçamento</h4>
@@ -598,15 +617,34 @@
     <div class="modal modal-xl" id="print-preview-modal">
         <div class="modal-content print-preview">
             <div class="print-header minimal">
-                <h3>Pré-visualização</h3>
+                <h3 class="print-title">Pré-visualização</h3>
+                <!-- Central: seletor de vias -->
+                <div class="print-center">
+                    <div class="via-selector is-md" role="tablist" aria-label="Selecionar via">
+                        <button class="btn-via active" onclick="switchViaPreview('vendedor')" title="Via do Vendedor" role="tab" aria-selected="true">
+                            Vendedor
+                        </button>
+                        <button class="btn-via" onclick="switchViaPreview('cliente')" title="Via do Cliente" role="tab" aria-selected="false">
+                            Cliente
+                        </button>
+                        <button class="btn-via" onclick="switchViaPreview('funcionarios')" title="Via dos Funcionários" role="tab" aria-selected="false">
+                            Funcionários
+                        </button>
+                    </div>
+                </div>
+                <!-- Direita: ações -->
                 <div class="print-actions minimal">
+                    <div class="action-separator"></div>
                     <button class="icon-btn" onclick="sendOrcamentoEmailFromPreview()" title="Enviar por email">
                         <i class="fas fa-envelope"></i>
                     </button>
-                    <button class="icon-btn" onclick="downloadOrcamentoFromPreview()" title="Baixar (PDF/HTML)">
+                    <button class="icon-btn" onclick="downloadOrcamentoFromPreview()" title="Baixar PDF">
                         <i class="fas fa-download"></i>
                     </button>
-                    <button class="icon-btn" onclick="printDocument()" title="Imprimir">
+                    <button class="icon-btn whatsapp-btn" onclick="shareOrcamentoWhatsApp()" title="Compartilhar no WhatsApp">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>
+                    <button class="icon-btn" onclick="printDocument()" title="Imprimir todas as 3 vias">
                         <i class="fas fa-print"></i>
                     </button>
                     <button class="icon-btn icon-btn-close" onclick="closeModal('print-preview-modal')" title="Fechar">

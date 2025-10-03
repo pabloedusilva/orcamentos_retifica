@@ -1,0 +1,6 @@
+/* botões, cards, modals, inputs */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--color-border);border-radius:10px;background:#fff;color:var(--color-fg);cursor:pointer}
+.btn:hover{background:var(--gray-50)}
+.icon-btn{border:1px solid var(--color-border);background:#fff;border-radius:8px;padding:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center}
+.modal{position:fixed;inset:0;display:none}
+.modal.active{display:flex}

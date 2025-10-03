@@ -1,4 +1,0 @@
-/* grid e containers principais */
-.app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-.main{padding:16px}
-.sidebar{border-right:1px solid var(--color-border)}

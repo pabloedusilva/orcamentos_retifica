@@ -2370,3 +2370,187 @@ body.modal-open { overflow: hidden; }
     .form-grid { grid-template-columns: 1fr; gap: 16px; }
     .upload-row { grid-template-columns: 1fr; }
 }
+
+/* Estilos específicos para impressão em tablets e dispositivos móveis */
+@media print {
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    body {
+        font-family: Arial, sans-serif !important;
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        color: black !important;
+    }
+    
+    .orcamento-document {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0.5cm !important;
+        background: white !important;
+        color: black !important;
+        page-break-after: always !important;
+        transform: none !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    
+    .orcamento-document:last-child {
+        page-break-after: auto !important;
+    }
+    
+    .company-logo img {
+        max-height: 60px !important;
+        max-width: 100px !important;
+        object-fit: contain !important;
+    }
+    
+    .orcamento-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        margin-bottom: 12px !important;
+        padding-bottom: 6px !important;
+        border-bottom: 1px solid black !important;
+    }
+    
+    .company-info {
+        flex: 1 !important;
+        text-align: center !important;
+        margin: 0 8px !important;
+    }
+    
+    .orcamento-number {
+        font-size: 14px !important;
+        font-weight: bold !important;
+        color: black !important;
+    }
+    
+    .orcamento-details {
+        background: #f8f8f8 !important;
+        padding: 6px !important;
+        margin-bottom: 12px !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    .detail-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        margin-bottom: 3px !important;
+        font-size: 8px !important;
+    }
+    
+    .itens-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin-bottom: 12px !important;
+        font-size: 8px !important;
+    }
+    
+    .itens-table th,
+    .itens-table td {
+        border: 1px solid black !important;
+        padding: 3px !important;
+        text-align: left !important;
+    }
+    
+    .itens-table th {
+        background: #e0e0e0 !important;
+        font-weight: bold !important;
+    }
+    
+    .totals-table {
+        width: 40% !important;
+        margin-left: auto !important;
+        border-collapse: collapse !important;
+        margin-bottom: 12px !important;
+    }
+    
+    .totals-table td {
+        padding: 3px 6px !important;
+        border-bottom: 1px solid #ccc !important;
+        font-size: 9px !important;
+    }
+    
+    .total-final {
+        font-weight: bold !important;
+        border-top: 2px solid black !important;
+    }
+    
+    .footer-notes {
+        font-size: 7px !important;
+        margin-top: 12px !important;
+    }
+    
+    .footer-notes h4 {
+        margin-bottom: 6px !important;
+        font-size: 8px !important;
+    }
+    
+    .footer-notes ul {
+        margin-left: 12px !important;
+    }
+    
+    .footer-notes li {
+        margin-bottom: 2px !important;
+    }
+    
+    .page-break {
+        page-break-before: always !important;
+    }
+    
+    /* Esconder elementos não necessários na impressão */
+    .print-instructions,
+    .sidebar,
+    .header,
+    .site-footer,
+    .modal-overlay,
+    .btn,
+    button:not(.print-safe) {
+        display: none !important;
+    }
+}
+
+/* Estilos para dispositivos móveis e tablets */
+@media screen and (max-width: 1024px) {
+    .print-preview-modal .modal-content {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+    }
+    
+    .print-header {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .print-actions {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .icon-btn {
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+    
+    .orcamento-preview {
+        overflow: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    .orcamento-document {
+        width: 100% !important;
+        max-width: none !important;
+        font-size: 12px !important;
+    }
+}

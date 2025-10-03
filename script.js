@@ -2101,39 +2101,251 @@ function getCurrentViaType() {
     return match ? match[1] : 'vendedor';
 }
 
-async function convertImageToBase64(imgSrc) {
+// Função robusta para converter imagens locais para base64
+async function convertLocalImageToBase64Safe(imgSrc) {
     return new Promise((resolve, reject) => {
         try {
+            // Se já é base64, retornar como está
+            if (imgSrc.startsWith('data:')) {
+                resolve(imgSrc);
+                return;
+            }
+            
+            // Procurar imagem já carregada na página principal
+            const filename = imgSrc.split('/').pop();
+            const existingImg = document.querySelector(`img[src*="${filename}"]`);
+            
+            if (existingImg && existingImg.complete && existingImg.naturalWidth > 0) {
+                // Tentar converter a imagem já carregada
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = existingImg.naturalWidth;
+                    canvas.height = existingImg.naturalHeight;
+                    
+                    // Desenhar com fundo branco
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Desenhar a imagem
+                    ctx.drawImage(existingImg, 0, 0);
+                    
+                    const dataUrl = canvas.toDataURL('image/png', 1.0);
+                    console.log('Imagem convertida com sucesso:', filename);
+                    resolve(dataUrl);
+                    return;
+                } catch (canvasError) {
+                    console.warn('Erro ao converter imagem carregada:', canvasError);
+                }
+            }
+            
+            // Tentar carregar a imagem diretamente sem crossOrigin
             const img = new Image();
-            img.crossOrigin = 'anonymous';
             
             img.onload = function() {
                 try {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = this.naturalWidth;
-                    canvas.height = this.naturalHeight;
+                    
+                    canvas.width = this.naturalWidth || this.width;
+                    canvas.height = this.naturalHeight || this.height;
+                    
+                    // Fundo branco
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
                     ctx.drawImage(this, 0, 0);
-                    resolve(canvas.toDataURL('image/png'));
-                } catch (canvasError) {
-                    console.warn('Erro no canvas:', canvasError);
-                    resolve(imgSrc); // Retorna a src original
+                    const dataUrl = canvas.toDataURL('image/png', 1.0);
+                    console.log('Imagem carregada e convertida:', filename);
+                    resolve(dataUrl);
+                } catch (error) {
+                    console.warn('Erro no canvas ao converter:', error);
+                    resolve(null);
                 }
             };
             
             img.onerror = function(error) {
                 console.warn('Erro ao carregar imagem:', error);
-                resolve(imgSrc); // Retorna a src original se falhar
+                resolve(null);
             };
             
-            // Timeout para evitar travamentos
+            // Timeout de 8 segundos
             setTimeout(() => {
-                resolve(imgSrc);
-            }, 3000);
+                console.warn('Timeout ao carregar imagem:', imgSrc);
+                resolve(null);
+            }, 8000);
             
+            // Carregar sem crossOrigin para evitar CORS
             img.src = imgSrc;
+            
         } catch (error) {
-            console.warn('Erro geral:', error);
+            console.warn('Erro geral na conversão:', error);
+            resolve(null);
+        }
+    });
+}
+
+// Função para substituir imagem por placeholder
+function replaceImageWithPlaceholder(imgElement) {
+    // Criar um div com o texto do logo
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText = `
+        width: 100px;
+        height: 60px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #dee2e6;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: #495057;
+        text-align: center;
+        font-weight: 600;
+        line-height: 1.1;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    `;
+    placeholder.innerHTML = '<div>LOGO DA<br>EMPRESA</div>';
+    
+    // Substituir a imagem pelo placeholder
+    if (imgElement.parentNode) {
+        imgElement.parentNode.replaceChild(placeholder, imgElement);
+    }
+    
+    console.log('Imagem substituída por placeholder para evitar erro de canvas');
+}
+
+// Função para pré-carregar e converter logo da empresa
+async function preloadCompanyLogo() {
+    const company = state.company || {};
+    
+    // Se já tem logoDataUrl (base64), não precisa fazer nada
+    if (company.logoDataUrl && company.logoDataUrl.startsWith('data:')) {
+        console.log('✅ Logo já está em base64');
+        return company.logoDataUrl;
+    }
+    
+    // Procurar imagem do logo carregada na página
+    const logoImg = document.querySelector('.brand-logo-rect, .company-logo img');
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+        try {
+            // Converter para base64
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = logoImg.naturalWidth;
+            canvas.height = logoImg.naturalHeight;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(logoImg, 0, 0);
+            
+            const logoBase64 = canvas.toDataURL('image/png', 1.0);
+            
+            // Salvar no state para uso futuro
+            if (state.company) {
+                state.company.logoDataUrl = logoBase64;
+            }
+            
+            console.log('✅ Logo convertido para base64 e salvo');
+            return logoBase64;
+        } catch (error) {
+            console.warn('Erro ao converter logo:', error);
+        }
+    }
+    
+    return null;
+}
+
+// Função para mostrar notificação sobre fallback de imagem
+let imageFallbackShown = false;
+function showImageFallbackNotification() {
+    if (!imageFallbackShown) {
+        imageFallbackShown = true;
+        // Criar notificação discreta
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 12px 16px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10000;
+            font-size: 13px;
+            max-width: 300px;
+            line-height: 1.4;
+        `;
+        notification.innerHTML = `
+            <strong>🔄 Processando:</strong><br>
+            Convertendo imagens para garantir melhor qualidade no PDF...
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover após 3 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+}
+
+async function convertImageToBase64(imgSrc) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Se já é base64, retornar como está
+            if (imgSrc.startsWith('data:')) {
+                resolve(imgSrc);
+                return;
+            }
+            
+            // Para URLs HTTP/HTTPS normais
+            const img = new Image();
+            
+            const timeoutId = setTimeout(() => {
+                console.warn('Timeout ao converter imagem:', imgSrc);
+                resolve(imgSrc);
+            }, 5000);
+            
+            img.onload = function() {
+                clearTimeout(timeoutId);
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = this.naturalWidth || this.width;
+                    canvas.height = this.naturalHeight || this.height;
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(this, 0, 0, canvas.width, canvas.height);
+                    
+                    const dataUrl = canvas.toDataURL('image/png', 1.0);
+                    resolve(dataUrl);
+                } catch (canvasError) {
+                    console.warn('Erro no canvas:', canvasError);
+                    resolve(imgSrc);
+                }
+            };
+            
+            img.onerror = function(error) {
+                clearTimeout(timeoutId);
+                console.warn('Erro ao carregar imagem:', error);
+                resolve(imgSrc);
+            };
+            
+            // Tentar carregar a imagem
+            img.src = imgSrc;
+            
+        } catch (error) {
+            console.warn('Erro geral na conversão:', error);
             resolve(imgSrc);
         }
     });
@@ -2208,148 +2420,106 @@ function sendOrcamentoEmailFromPreview() {
     window.location.href = href;
 }
 
-function downloadOrcamentoFromPreview() {
-    // Gerar PDF da via selecionada e baixar localmente
-    try {
-        const orcamentoId = getPreviewOrcamentoId();
-        if (!orcamentoId) return;
-        
-        const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
-        if (!orcamento) return;
-        
-        const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
-        const viaType = getCurrentViaType();
-        
-        // Gerar HTML da via específica
-        const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
-        
-        // Criar elemento temporário com o HTML da via
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = viaHtml;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '0';
-        tempDiv.style.width = '210mm';
-        tempDiv.style.backgroundColor = '#ffffff';
-        
-        // Remover imagens que podem causar problemas de CORS
-        const images = tempDiv.querySelectorAll('img');
-        images.forEach(img => {
-            // Se não for base64, substituir por placeholder ou remover
-            if (img.src && !img.src.startsWith('data:')) {
-                img.style.display = 'none';
-            }
-        });
-        
-        document.body.appendChild(tempDiv);
-        
-        // Aguardar um pouco para o conteúdo carregar e gerar PDF
-        setTimeout(async () => {
-            try {
-                const canvas = await html2canvas(tempDiv, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff',
-                    logging: false
-                });
-                
-                // Remover elemento temporário
-                document.body.removeChild(tempDiv);
-                
-                const imgData = canvas.toDataURL('image/png', 0.9);
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                
-                const imgWidth = 210;
-                const pageHeight = 295;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                let heightLeft = imgHeight;
-                
-                let position = 0;
-                
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-                
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
-                }
-                
-                const id = getPreviewOrcamentoId() || 'orcamento';
-                const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-                const fileName = `orcamento-${clienteNome}-${id}-${viaType}.pdf`;
-                
-                pdf.save(fileName);
-            } catch (error) {
-                console.error('Erro ao gerar PDF:', error);
-                alert('Erro ao gerar PDF. Tente novamente.');
-                if (document.body.contains(tempDiv)) {
-                    document.body.removeChild(tempDiv);
-                }
-            }
-        }, 300);
-    } catch (error) {
-        console.error('Erro ao gerar PDF:', error);
-        alert('Erro ao gerar PDF. Tente novamente.');
-    }
-}
+
 
 async function shareOrcamentoWhatsApp() {
     // Gerar PDF da via selecionada e compartilhar via WhatsApp
-    try {
-        const orcamentoId = getPreviewOrcamentoId();
-        if (!orcamentoId) return;
-        
-        const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
-        if (!orcamento) return;
-        
-        const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
-        const viaType = getCurrentViaType();
-        
-        // Gerar HTML da via específica
-        const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
-        
-        // Criar elemento temporário com o HTML da via
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = viaHtml;
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '0';
-        tempDiv.style.width = '210mm';
-        tempDiv.style.backgroundColor = '#ffffff';
-        
-        // Remover imagens que podem causar problemas de CORS
-        const images = tempDiv.querySelectorAll('img');
-        images.forEach(img => {
-            // Se não for base64, substituir por placeholder ou remover
-            if (img.src && !img.src.startsWith('data:')) {
-                img.style.display = 'none';
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) return;
+    
+    const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) return;
+    
+    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    const viaType = getCurrentViaType();
+    
+    // PRÉ-CARREGAR LOGO DA EMPRESA PARA WHATSAPP
+    console.log('🔄 Pré-carregando logo para WhatsApp...');
+    await preloadCompanyLogo();
+    
+    // Gerar HTML da via específica
+    const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
+    
+    // Criar elemento temporário com o HTML da via
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = viaHtml;
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '0';
+    tempDiv.style.width = '210mm';
+    tempDiv.style.backgroundColor = '#ffffff';
+    
+    // Configurar imagens para ambiente local de forma segura
+    const images = tempDiv.querySelectorAll('img');
+    for (const img of images) {
+        if (img.src && !img.src.startsWith('data:')) {
+            try {
+                const base64Url = await convertLocalImageToBase64Safe(img.src);
+                if (base64Url && base64Url.startsWith('data:')) {
+                    img.src = base64Url;
+                    console.log('Imagem convertida para WhatsApp');
+                } else {
+                    // Substituir por placeholder para evitar canvas tainted
+                    replaceImageWithPlaceholder(img);
+                }
+            } catch (error) {
+                console.warn('Erro ao processar imagem WhatsApp, usando placeholder:', error);
+                replaceImageWithPlaceholder(img);
             }
-        });
+            
+            img.style.maxWidth = '100px';
+            img.style.maxHeight = '100px';
+            img.style.objectFit = 'contain';
+            img.style.display = 'block';
+            img.removeAttribute('crossorigin');
+        }
+    }
+    
+    document.body.appendChild(tempDiv);
+    
+    try {
+        // Aguardar carregamento
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        document.body.appendChild(tempDiv);
-        
-        // Aguardar um pouco para o conteúdo carregar
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const canvas = await html2canvas(tempDiv, {
-            scale: 3, // Aumentei a escala para melhor qualidade
+        // Configurações para arquivos locais
+        const html2canvasOptions = {
+            scale: 1.5,
             useCORS: false,
-            allowTaint: false,
+            allowTaint: true,
             backgroundColor: '#ffffff',
             logging: false,
+            imageTimeout: 0,
+            removeContainer: false,
             foreignObjectRendering: false,
-            width: tempDiv.scrollWidth,
-            height: tempDiv.scrollHeight
-        });
-        
-        // Remover elemento temporário
+            width: tempDiv.offsetWidth,
+            height: tempDiv.offsetHeight
+        };
+
+        const canvas = await html2canvas(tempDiv, html2canvasOptions);
         document.body.removeChild(tempDiv);
         
-        const imgData = canvas.toDataURL('image/png', 1.0); // Qualidade máxima
+        let imgData;
+        try {
+            imgData = canvas.toDataURL('image/png', 1.0);
+        } catch (taintError) {
+            console.warn('Canvas tainted no WhatsApp, tentando fallback:', taintError);
+            try {
+                imgData = canvas.toDataURL('image/jpeg', 0.7);
+            } catch (finalError) {
+                console.error('Erro final no WhatsApp, gerando sem imagens');
+                // Criar versão limpa sem imagens
+                const cleanDiv = tempDiv.cloneNode(true);
+                document.body.appendChild(cleanDiv);
+                
+                const allImages = cleanDiv.querySelectorAll('img');
+                allImages.forEach(img => replaceImageWithPlaceholder(img));
+                
+                const cleanCanvas = await html2canvas(cleanDiv, html2canvasOptions);
+                document.body.removeChild(cleanDiv);
+                imgData = cleanCanvas.toDataURL('image/jpeg', 0.7);
+            }
+        }
+        
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'a4');
         
@@ -2357,7 +2527,6 @@ async function shareOrcamentoWhatsApp() {
         const pageHeight = 295;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         let heightLeft = imgHeight;
-        
         let position = 0;
         
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
@@ -2377,7 +2546,7 @@ async function shareOrcamentoWhatsApp() {
         // Converter PDF para blob
         const pdfBlob = pdf.output('blob');
         
-        // Simular upload para servidor (aqui você implementaria a chamada real para seu backend)
+        // Simular upload para servidor
         const serverUrl = await uploadPdfToServer(pdfBlob, fileName);
         
         // Preparar mensagem para WhatsApp
@@ -2392,6 +2561,9 @@ async function shareOrcamentoWhatsApp() {
     } catch (error) {
         console.error('Erro ao compartilhar no WhatsApp:', error);
         alert('Erro ao compartilhar no WhatsApp. Tente novamente.');
+        if (document.body.contains(tempDiv)) {
+            document.body.removeChild(tempDiv);
+        }
     }
 }
 
@@ -2769,8 +2941,102 @@ function generateAllVias(orcamento, cliente) {
     `;
 }
 
-// Função para imprimir documento (3 vias)
+// Detectar tipo de dispositivo
+function detectDevice() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+    const isTablet = /tablet|ipad|playbook|silk/i.test(userAgent) || 
+                     (isMobile && !/mobile/i.test(userAgent)) ||
+                     (window.screen && window.screen.width >= 768 && window.screen.height >= 1024);
+    const isAndroid = /android/i.test(userAgent);
+    const isSamsung = /samsung/i.test(userAgent) || /SM-/i.test(userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+    
+    return {
+        isMobile,
+        isTablet,
+        isAndroid,
+        isSamsung,
+        isIOS,
+        isDesktop: !isMobile && !isTablet
+    };
+}
+
+// Função para impressão via PDF (fallback para dispositivos móveis)
+async function printViaPDF() {
+    try {
+        const orcamentoId = getPreviewOrcamentoId();
+        if (!orcamentoId) return;
+        
+        const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+        if (!orcamento) return;
+        
+        const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+        const todasVias = generateAllVias(orcamento, cliente);
+        
+        // Criar elemento temporário para renderização
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = `
+            <div style="width: 210mm; background: white; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.3;">
+                ${todasVias}
+            </div>
+        `;
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '0';
+        
+        // Aguardar carregamento de imagens
+        await preloadImagesInElement(tempDiv);
+        
+        document.body.appendChild(tempDiv);
+        
+        // Gerar PDF usando html2canvas + jsPDF
+        const canvas = await html2canvas(tempDiv, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            width: tempDiv.scrollWidth,
+            height: tempDiv.scrollHeight
+        });
+        
+        document.body.removeChild(tempDiv);
+        
+        const imgData = canvas.toDataURL('image/png', 0.9);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        const imgWidth = 210;
+        const pageHeight = 297;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        // Salvar PDF
+        const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+        pdf.save(`orcamento-${clienteNome}-${orcamentoId}-3vias.pdf`);
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar impressão. Tente novamente.');
+    }
+}
+
+// Função principal de impressão com detecção de dispositivo
 function printDocument() {
+    const device = detectDevice();
+    
     // Obter dados do orçamento atual
     const orcamentoId = getPreviewOrcamentoId();
     if (!orcamentoId) {
@@ -2784,9 +3050,14 @@ function printDocument() {
         return;
     }
     
-    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    // Para tablets e dispositivos móveis, especialmente Samsung, usar PDF
+    if (device.isTablet || device.isMobile || device.isSamsung) {
+        showPrintOptions();
+        return;
+    }
     
-    // Gerar todas as 3 vias
+    // Desktop: usar método tradicional de impressão
+    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
     const todasVias = generateAllVias(orcamento, cliente);
     
     // Criar uma janela temporária para impressão
@@ -2816,9 +3087,7 @@ function printDocument() {
     
     // Aguardar o carregamento e imprimir
     printWindow.onload = function() {
-        // Keep title empty to avoid browser print headers showing a custom title
         try { printWindow.document.title = ' '; } catch {}
-        // Replace about:blank with a friendly URL to avoid it in printed headers/footers
         try {
             const href = window.location && window.location.href ? window.location.href : '';
             const newUrl = href ? `${href.split('#')[0]}#impressao` : '#impressao';
@@ -2828,6 +3097,259 @@ function printDocument() {
         printWindow.print();
         printWindow.close();
     };
+}
+
+// Mostrar opções de impressão para dispositivos móveis
+function showPrintOptions() {
+    const device = detectDevice();
+    let message = 'Como deseja imprimir?\n\n';
+    
+    if (device.isTablet) {
+        message += '📱 Tablet detectado\n';
+    } else if (device.isMobile) {
+        message += '📱 Dispositivo móvel detectado\n';
+    }
+    
+    message += '1. Baixar PDF (Recomendado)\n';
+    message += '2. Tentar impressão direta\n\n';
+    message += 'Escolha uma opção:';
+    
+    const choice = prompt(message + '\n\nDigite 1 para PDF ou 2 para impressão direta:');
+    
+    if (choice === '1') {
+        printViaPDF();
+    } else if (choice === '2') {
+        tryDirectPrint();
+    } else {
+        alert('Operação cancelada');
+    }
+}
+
+// Tentar impressão direta mesmo em dispositivos móveis
+function tryDirectPrint() {
+    const orcamentoId = getPreviewOrcamentoId();
+    const orcamento = state.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    const todasVias = generateAllVias(orcamento, cliente);
+    
+    // Criar uma nova aba/janela para impressão
+    const printContent = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Impressão - Orçamento ${orcamento.id}</title>
+            <style>
+                ${getMobilePrintStyles()}
+            </style>
+        </head>
+        <body onload="setTimeout(() => { window.print(); }, 1000);">
+            <div class="print-instructions">
+                <p>📋 Documento pronto para impressão</p>
+                <p>Use o menu do navegador para imprimir ou compartilhar</p>
+                <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; margin: 10px;">🖨️ Imprimir</button>
+            </div>
+            ${todasVias}
+        </body>
+        </html>
+    `;
+    
+    const blob = new Blob([printContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    
+    // Limpar URL após uso
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// Aguardar carregamento de imagens em elemento
+async function preloadImagesInElement(element) {
+    const images = element.querySelectorAll('img');
+    const promises = Array.from(images).map(img => {
+        return new Promise((resolve) => {
+            if (img.complete) {
+                resolve();
+            } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve(); // Continue mesmo com erro
+            }
+        });
+    });
+    
+    await Promise.all(promises);
+}
+
+// Estilos para impressão em dispositivos móveis
+function getMobilePrintStyles() {
+    return `
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: white;
+            color: #000;
+            line-height: 1.3;
+            font-size: 12px;
+            padding: 10px;
+        }
+        
+        .print-instructions {
+            text-align: center;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        @media print {
+            .print-instructions {
+                display: none !important;
+            }
+            
+            body {
+                padding: 0;
+                font-size: 10px;
+            }
+        }
+        
+        .orcamento-document {
+            width: 100%;
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            color: #000;
+            page-break-after: always;
+        }
+        
+        .orcamento-document:last-child {
+            page-break-after: auto;
+        }
+        
+        .orcamento-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #333;
+            flex-wrap: wrap;
+        }
+        
+        .company-logo img {
+            max-height: 80px;
+            max-width: 120px;
+            object-fit: contain;
+        }
+        
+        .company-info {
+            flex: 1;
+            text-align: center;
+            margin: 0 10px;
+        }
+        
+        .orcamento-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .orcamento-details {
+            background: #f8f8f8;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        
+        .itens-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 9px;
+        }
+        
+        .itens-table th,
+        .itens-table td {
+            border: 1px solid #333;
+            padding: 4px;
+            text-align: left;
+        }
+        
+        .itens-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+        }
+        
+        .totals-table {
+            width: 50%;
+            margin-left: auto;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        
+        .totals-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .total-final {
+            font-weight: bold;
+            border-top: 2px solid #333 !important;
+        }
+        
+        .footer-notes {
+            font-size: 8px;
+            margin-top: 16px;
+        }
+        
+        .footer-notes h4 {
+            margin-bottom: 8px;
+            font-size: 9px;
+        }
+        
+        .footer-notes ul {
+            margin-left: 16px;
+        }
+        
+        .footer-notes li {
+            margin-bottom: 4px;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        @media screen and (max-width: 768px) {
+            .orcamento-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .company-info {
+                margin: 10px 0;
+            }
+            
+            .detail-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .itens-table {
+                font-size: 8px;
+            }
+            
+            .totals-table {
+                width: 100%;
+            }
+        }
+    `;
 }
 
 // Função para obter estilos inline para impressão
@@ -2862,7 +3384,7 @@ function getInlineStyles() {
             padding-bottom: 8px;
             border-bottom: 1px solid #333;
         }
-        /* Limit logo size on print to avoid oversized images (slightly larger) */
+        /* Otimização para imagens no PDF e impressão */
         .company-logo img {
             max-height: 100px;
             max-width: 50%;
@@ -2870,6 +3392,11 @@ function getInlineStyles() {
             width: auto;
             display: block;
             object-fit: contain;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: optimize-contrast;
+            image-rendering: crisp-edges;
         }
         
         .company-info h1 {
@@ -3354,6 +3881,22 @@ function getInlineStyles() {
             size: A4;
         }
 
+        /* Configurações globais para melhor renderização de imagens */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        
+        img {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: optimize-contrast;
+            image-rendering: crisp-edges;
+            max-width: 100%;
+            height: auto;
+        }
+
         @media print {
             .orcamento-document {
                 page-break-inside: avoid;
@@ -3367,6 +3910,12 @@ function getInlineStyles() {
             .watermark-copia {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+            
+            img {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                image-rendering: -webkit-optimize-contrast !important;
             }
         }
     `;

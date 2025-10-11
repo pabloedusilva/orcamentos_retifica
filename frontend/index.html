@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retífica Orçamentos</title>
+    <!-- PWA / Standalone Meta -->
+    <meta name="theme-color" content="#E0B84E">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Retífica Orçamentos">
+    <link rel="apple-touch-icon" href="img/logo.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="assets/css/global.css">
+    <!-- Section-specific styles -->
+    <link rel="stylesheet" href="assets/css/sections/dashboard.css">
+    <link rel="stylesheet" href="assets/css/sections/orcamentos.css">
+    <link rel="stylesheet" href="assets/css/sections/clientes.css">
+    <link rel="stylesheet" href="assets/css/sections/pecas.css">
+    <link rel="stylesheet" href="assets/css/sections/servicos.css">
+    <link rel="stylesheet" href="assets/css/sections/configuracoes.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <!-- Bibliotecas para geração de PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <div class="logo-rect">
+                    <img src="img/logo.png" alt="Logo da Retífica" class="brand-logo-rect" />
+                </div>
+                <div class="brand-greeting brand-stack">
+                    <div class="hello">Olá <span id="current-username">Admin</span></div>
+                </div>
+                <div class="brand-clock" id="sidebar-clock" aria-live="polite" title="Horário de São Paulo (WorldTimeAPI)">
+                    <span class="clock-time" id="clock-time">--:--</span>
+                    <span class="clock-date" id="clock-date">--/--/----</span>
+                </div>
+            </div>
+            
+            <ul class="nav-menu">
+                <li class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li class="nav-item" data-section="orcamentos">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Orçamentos</span>
+                </li>
+                <li class="nav-item" data-section="clientes">
+                    <i class="fas fa-users"></i>
+                    <span>Clientes</span>
+                </li>
+                <li class="nav-item" data-section="pecas">
+                    <i class="fas fa-wrench"></i>
+                    <span>Peças</span>
+                </li>
+                <li class="nav-item" data-section="servicos">
+                    <i class="fas fa-tools"></i>
+                    <span>Serviços</span>
+                </li>
+                <li class="nav-item" data-section="configuracoes">
+                    <i class="fas fa-cog"></i>
+                    <span>Configurações</span>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-sm" id="logout-btn" title="Sair">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Sair</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div id="sidebar-overlay" class="sidebar-overlay"></div>
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" aria-label="Abrir menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title">Dashboard</h1>
+                    <p class="page-subtitle">Visão geral do seu negócio</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" id="novo-orcamento">
+                        <i class="fas fa-plus"></i>
+                        Novo Orçamento
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard Section -->
+            <section class="section active" id="dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card" role="button" tabindex="0" data-goto="orcamentos">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-orcamentos">0</h3>
+                            <p>Orçamentos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card" role="button" tabindex="0" data-goto="clientes">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-clientes">0</h3>
+                            <p>Clientes</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card" role="button" tabindex="0" data-goto="pecas">
+                        <div class="stat-icon">
+                            <i class="fas fa-wrench"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-pecas">0</h3>
+                            <p>Peças</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card" role="button" tabindex="0" data-goto="servicos">
+                        <div class="stat-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-servicos">0</h3>
+                            <p>Serviços</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-orcamentos">
+                    <h2>Orçamentos Recentes</h2>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Cliente</th>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                    <th>Links</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-orcamentos-list">
+                                <!-- Dados serão inseridos aqui pelo JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="recent-actions">
+                        <a href="#" class="see-all-link" onclick="navigateToSection('orcamentos'); return false;">Ver Tudo</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orçamentos Section -->
+            <section class="section" id="orcamentos">
+                <div class="section-header">
+                    <h2>Orçamentos</h2>
+                    <button class="btn btn-primary" onclick="openModal('orcamento-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Orçamento
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar orçamentos..." id="search-orcamentos">
+                    <select class="filter-select" id="status-filter">
+                        <option value="">Todos os Status</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="aprovado">Aprovado</option>
+                    </select>
+                    <input type="date" class="filter-input" id="date-start" title="Data inicial" placeholder="Data inicial" />
+                    <input type="date" class="filter-input" id="date-end" title="Data final" placeholder="Data final" />
+                    <button type="button" class="btn btn-clear-filters" id="clear-orcamentos-filters">Limpar filtros</button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Data</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                    <th>Ações</th>
+                                    <th>Links</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orcamentos-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Clientes Section -->
+            <section class="section" id="clientes">
+                <div class="section-header">
+                    <h2>Clientes</h2>
+                    <button class="btn btn-primary" onclick="openModal('cliente-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Cliente
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar clientes..." id="search-clientes">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Email</th>
+                                <th>Telefone</th>
+                                <th>Cidade</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientes-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Peças Section -->
+            <section class="section" id="pecas">
+                <div class="section-header">
+                    <h2>Peças</h2>
+                    <button class="btn btn-primary" onclick="openModal('peca-modal')">
+                        <i class="fas fa-plus"></i>
+                        Nova Peça
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar peças..." id="search-pecas">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pecas-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Serviços Section -->
+            <section class="section" id="servicos">
+                <div class="section-header">
+                    <h2>Serviços</h2>
+                    <button class="btn btn-primary" onclick="openModal('servico-modal')">
+                        <i class="fas fa-plus"></i>
+                        Novo Serviço
+                    </button>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" class="filter-input" placeholder="Buscar serviços..." id="search-servicos">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="servicos-list">
+                            <!-- Dados serão inseridos aqui pelo JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Configurações Section -->
+            <section class="section" id="configuracoes">
+                <div class="section-header">
+                    <h2>Configurações</h2>
+                </div>
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <div class="settings-section">
+                            <h3 class="settings-title">Identidade Visual</h3>
+                            <div class="logo-area">
+                                <!-- Prévia grande centralizada (no topo) -->
+                                <div class="logo-preview" id="logo-preview" aria-live="polite">
+                                    <img id="logo-preview-img" alt="Prévia do Logo" />
+                                </div>
+                                <!-- Linha de opções: Upload ao lado de logos pré-definidas -->
+                                <div class="logo-options-row" id="logo-options-row">
+                                    <div class="upload-box" id="logo-drop" onclick="document.getElementById('settings-logo').click()" role="button">
+                                        <div class="upload-icon"><i class="fas fa-image"></i></div>
+                                        <div class="upload-text">
+                                            <strong>Enviar logo</strong>
+                                            <span>PNG ou JPG. Recomendado fundo transparente</span>
+                                        </div>
+                                        <input type="file" id="settings-logo" accept="image/*" style="display:none" />
+                                    </div>
+                                    <button type="button" class="logo-preset" data-preset="1" aria-label="Logo preset 1">
+                                        <img src="img/logo.png" alt="Logo 1" />
+                                    </button>
+                                    <button type="button" class="logo-preset" data-preset="2" aria-label="Logo preset 2">
+                                        <img src="img/logo2.png" alt="Logo 2" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3 class="settings-title">Dados da Empresa</h3>
+                            <div class="form-grid">
+                                <div class="form-group span-2">
+                                    <label>Nome da Empresa</label>
+                                    <input type="text" id="settings-nome" placeholder="Ex.: Janio Retífica" />
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Endereço</label>
+                                    <input type="text" id="settings-endereco" placeholder="Rua, número - bairro - cidade/UF" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Telefone</label>
+                                    <input type="text" id="settings-telefone" placeholder="(11) 3456-7890" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" id="settings-email" placeholder="contato@empresa.com.br" />
+                                </div>
+                                <div class="form-group">
+                                    <label>CNPJ</label>
+                                    <input type="text" id="settings-cnpj" placeholder="00.000.000/0000-00" />
+                                </div>
+                                <div class="form-group">
+                                    <label>CEP</label>
+                                    <input type="text" id="settings-cep" placeholder="00000-000" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn btn-secondary" id="settings-reset">Restaurar padrão</button>
+                            <div class="spacer"></div>
+                            <button class="btn btn-primary" id="settings-save"><i class="fas fa-save"></i> Salvar alterações</button>
+                        </div>
+                    </div>
+
+                    <aside class="account-card" id="account-card">
+                        <div class="settings-section">
+                            <h3 class="settings-title">Conta do Usuário</h3>
+                            <div class="form-grid">
+                                <div class="form-group span-2">
+                                    <label>Nome de usuário</label>
+                                    <input type="text" id="account-username" placeholder="Ex.: Admin" />
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Senha atual</label>
+                                    <input type="password" id="account-old-password" placeholder="Informe sua senha atual" autocomplete="current-password" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Nova senha</label>
+                                    <input type="password" id="account-new-password" placeholder="Mín. 8 caracteres" autocomplete="new-password" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Confirmar nova senha</label>
+                                    <input type="password" id="account-confirm-password" placeholder="Repita a nova senha" autocomplete="new-password" />
+                                </div>
+                                <div class="form-group span-full">
+                                    <small class="input-hint" id="account-hint">Por segurança, confirme a senha atual para alterá-la.</small>
+                                </div>
+                            </div>
+                            <div class="settings-actions">
+                                <button class="btn btn-primary" id="account-save"><i class="fas fa-save"></i> Salvar conta</button>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modais -->
+    <!-- Modal Cliente -->
+    <div class="modal" id="cliente-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Cliente</h3>
+                <button class="modal-close" onclick="closeModal('cliente-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="cliente-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nome Completo</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input type="tel" name="telefone" required>
+                    </div>
+                    <div class="form-group">
+                        <label>CPF/CNPJ</label>
+                        <input type="text" name="documento">
+                    </div>
+                    <div class="form-group">
+                        <label>CEP</label>
+                        <div class="cep-row">
+                            <input type="text" name="cep" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code">
+                            <button type="button" class="btn btn-sm btn-secondary" id="buscar-cep-btn">Buscar</button>
+                        </div>
+                        <small class="input-hint" id="cep-hint">Digite o CEP (8 dígitos)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Endereço</label>
+                        <div class="address-autocomplete">
+                            <input type="text" name="endereco" placeholder="Rua, bairro - cidade/UF" autocomplete="off">
+                            <div class="address-suggestions" id="cliente-endereco-suggestions"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="text" name="numero" placeholder="Ex.: 123">
+                    </div>
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" name="cidade">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('cliente-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Peça -->
+    <div class="modal" id="peca-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nova Peça</h3>
+                <button class="modal-close" onclick="closeModal('peca-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="peca-form">
+                <div class="form-grid">
+                    
+                    <div class="form-group span-2">
+                        <label>Nome</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group span-2">
+                        <label class="label-optional">Descrição (Opcional)</label>
+                        <textarea name="descricao" rows="3" placeholder="Opcional"></textarea>
+                    </div>
+                    
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('peca-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Serviço -->
+    <div class="modal" id="servico-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Serviço</h3>
+                <button class="modal-close" onclick="closeModal('servico-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="servico-form">
+                <div class="form-grid">
+                    <div class="form-group span-2">
+                        <label>Nome</label>
+                        <input type="text" name="nome" required>
+                    </div>
+                    <div class="form-group span-2">
+                        <label class="label-optional">Descrição (Opcional)</label>
+                        <textarea name="descricao" rows="3" placeholder="Opcional"></textarea>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('servico-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Orçamento -->
+    <div class="modal modal-large" id="orcamento-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Novo Orçamento</h3>
+                <button class="modal-close" onclick="closeModal('orcamento-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="orcamento-form">
+                <div class="form-section">
+                    <h4>Informações do Cliente</h4>
+                    <div class="form-grid">
+                        <div class="form-group span-full">
+                            <label>Cliente</label>
+                            <div class="client-search">
+                                <input type="text" name="clienteBusca" placeholder="Digite para buscar cliente..." autocomplete="off" />
+                                <input type="hidden" name="cliente" />
+                                <div class="client-suggestions"></div>
+                            </div>
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Data</label>
+                            <input type="date" name="data" required>
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Validade (1 ano)</label>
+                            <input type="date" name="dataFinal" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Informações do Veículo</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Carro</label>
+                            <input type="text" name="carro" placeholder="Ex: Honda Civic, Toyota Corolla..." />
+                        </div>
+                        <div class="form-group">
+                            <label>Placa</label>
+                            <input type="text" name="placa" placeholder="Ex: ABC-1234" maxlength="8" />
+                        </div>
+                        <div class="form-group span-full">
+                            <label>Inc. Est. / CIC</label>
+                            <input type="text" name="incEst" placeholder="Inscrição Estadual ou CIC" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Itens do Orçamento</h4>
+                    <div class="orcamento-items">
+                        <div class="item-header">
+                            <div class="item-controls">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('peca')">
+                                    <i class="fas fa-wrench"></i> Adicionar Peça
+                                </button>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('servico')">
+                                    <i class="fas fa-tools"></i> Adicionar Serviço
+                                </button>
+                            </div>
+                        </div>
+                        <div id="orcamento-items-list">
+                            <!-- Itens serão adicionados aqui -->
+                        </div>
+                        
+                        <div class="total-section">
+                            <div class="total-breakdown">
+                                <div class="total-line"><span>Subtotal:</span><span>R$ <span id="orcamento-subtotal">0,00</span></span></div>
+                                
+                                <div class="total-line total-final"><span>Total:</span><span>R$ <span id="orcamento-total">0,00</span></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observação Section -->
+                <div class="form-section">
+                    <h4>Observação</h4>
+                    <div class="form-grid">
+                        <div class="form-group span-full">
+                            <label class="label-optional">Observação (Opcional)</label>
+                            <textarea name="observacao" rows="3" placeholder="Opcional"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('orcamento-modal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Orçamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pré-visualização de Impressão -->
+    <div class="modal modal-xl" id="print-preview-modal">
+        <div class="modal-content print-preview">
+            <div class="print-header minimal">
+                <h3 class="print-title">Pré-visualização</h3>
+                <!-- Central: seletor de vias -->
+                <div class="print-center">
+                    <div class="via-selector is-md" role="tablist" aria-label="Selecionar via">
+                        <button class="btn-via active" onclick="switchViaPreview('vendedor')" title="Via do Vendedor" role="tab" aria-selected="true">
+                            Vendedor
+                        </button>
+                        <button class="btn-via" onclick="switchViaPreview('cliente')" title="Via do Cliente" role="tab" aria-selected="false">
+                            Cliente
+                        </button>
+                        <button class="btn-via" onclick="switchViaPreview('funcionarios')" title="Via dos Funcionários" role="tab" aria-selected="false">
+                            Funcionários
+                        </button>
+                    </div>
+                </div>
+                <!-- Direita: ações -->
+                <div class="print-actions minimal">
+                    <div class="action-separator"></div>
+                    <button class="icon-btn" onclick="sendOrcamentoEmailFromPreview()" title="Enviar por email">
+                        <i class="fas fa-envelope"></i>
+                    </button>
+                    <button class="icon-btn whatsapp-btn" onclick="shareOrcamentoWhatsApp()" title="Compartilhar no WhatsApp">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>
+                    <button class="icon-btn" onclick="printViaPDF()" title="Baixar PDF (3 vias)">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="icon-btn" onclick="printDocument()" title="Imprimir todas as 3 vias">
+                        <i class="fas fa-print"></i>
+                    </button>
+                    <button class="icon-btn icon-btn-close" onclick="closeModal('print-preview-modal')" title="Fechar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="orcamento-preview" id="orcamento-preview-content">
+                <!-- Conteúdo será inserido aqui pelo JavaScript -->
+            </div>
+            <div class="print-footer">
+                <div class="zoom-controls" role="group" aria-label="Zoom">
+                    <button type="button" class="btn btn-zoom" id="zoom-out" title="Diminuir">−</button>
+                    <button type="button" class="btn btn-zoom" id="zoom-fit" title="Ajustar à janela">Ajustar</button>
+                    <span class="zoom-level" id="zoom-level" aria-live="polite">100%</span>
+                    <button type="button" class="btn btn-zoom" id="zoom-100" title="Tamanho real">100%</button>
+                    <button type="button" class="btn btn-zoom" id="zoom-in" title="Aumentar">+</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualização de Orçamento -->
+    <div class="modal" id="view-orcamento-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Orçamento <span id="view-orcamento-id">#</span></h3>
+                <button class="modal-close" onclick="closeModal('view-orcamento-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="view-body">
+                <div class="info-card">
+                    <h4 style="margin-bottom:10px;">Cliente</h4>
+                    <div class="info-grid">
+                        <div class="info-field">
+                            <div class="label">Nome</div>
+                            <div class="value" id="view-cliente-nome">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Data</div>
+                            <div class="value" id="view-data">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Validade</div>
+                            <div class="value" id="view-validade">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Status</div>
+                            <div class="value"><span class="status-badge" id="cliente-status-badge">—</span></div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">E-mail</div>
+                            <div class="value" id="view-email">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Telefone</div>
+                            <div class="value" id="view-telefone">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h4 style="margin-bottom:10px;">Itens</h4>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Qtd</th>
+                                    <th>Preço Unit.</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-itens-list">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="view-footer-row">
+                        <div class="segmented" role="group" aria-label="Status do orçamento">
+                            <button type="button" id="seg-pendente" class="seg-option seg-pendente" data-status="pendente">Pendente</button>
+                            <button type="button" id="seg-aprovado" class="seg-option seg-aprovado" data-status="aprovado">Aprovado</button>
+                        </div>
+                        <div class="view-total"><span>Total:&nbsp;</span><strong id="view-total-valor">R$ 0,00</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Universal (Alert/Confirm) -->
+    <div class="modal" id="universal-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="universal-modal-title">Aviso</h3>
+                <button class="modal-close" onclick="closeModal('universal-modal')" aria-label="Fechar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="universal-modal-message"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="universal-cancel" style="display:none">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="universal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+    <script src="assets/js/print.js"></script>
+    <!-- Section-specific scripts (override and organize per section) -->
+    <script src="assets/js/sections/dashboard.js"></script>
+    <script src="assets/js/sections/orcamentos.js"></script>
+    <script src="assets/js/sections/clientes.js"></script>
+    <script src="assets/js/sections/pecas.js"></script>
+    <script src="assets/js/sections/servicos.js"></script>
+    <script src="assets/js/sections/configuracoes.js"></script>
+    <script src="assets/js/components/footer.js"></script>
+</body>
+</html>

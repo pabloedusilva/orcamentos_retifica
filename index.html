@@ -12,9 +12,16 @@
     <meta name="apple-mobile-web-app-title" content="Retífica Orçamentos">
     <link rel="apple-touch-icon" href="img/logo.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="assets/css/global.css">
+    <!-- Section-specific styles -->
+    <link rel="stylesheet" href="assets/css/sections/dashboard.css">
+    <link rel="stylesheet" href="assets/css/sections/orcamentos.css">
+    <link rel="stylesheet" href="assets/css/sections/clientes.css">
+    <link rel="stylesheet" href="assets/css/sections/pecas.css">
+    <link rel="stylesheet" href="assets/css/sections/servicos.css">
+    <link rel="stylesheet" href="assets/css/sections/configuracoes.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <!-- Bibliotecas para geração de PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -641,6 +648,9 @@
                     <button class="icon-btn whatsapp-btn" onclick="shareOrcamentoWhatsApp()" title="Compartilhar no WhatsApp">
                         <i class="fab fa-whatsapp"></i>
                     </button>
+                    <button class="icon-btn" onclick="printViaPDF()" title="Baixar PDF (3 vias)">
+                        <i class="fas fa-download"></i>
+                    </button>
                     <button class="icon-btn" onclick="printDocument()" title="Imprimir todas as 3 vias">
                         <i class="fas fa-print"></i>
                     </button>
@@ -664,7 +674,100 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
-    <script src="footer.js"></script>
+    <!-- Modal Visualização de Orçamento -->
+    <div class="modal" id="view-orcamento-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Orçamento <span id="view-orcamento-id">#</span></h3>
+                <button class="modal-close" onclick="closeModal('view-orcamento-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="view-body">
+                <div class="info-card">
+                    <h4 style="margin-bottom:10px;">Cliente</h4>
+                    <div class="info-grid">
+                        <div class="info-field">
+                            <div class="label">Nome</div>
+                            <div class="value" id="view-cliente-nome">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Data</div>
+                            <div class="value" id="view-data">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Validade</div>
+                            <div class="value" id="view-validade">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Status</div>
+                            <div class="value"><span class="status-badge" id="cliente-status-badge">—</span></div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">E-mail</div>
+                            <div class="value" id="view-email">—</div>
+                        </div>
+                        <div class="info-field">
+                            <div class="label">Telefone</div>
+                            <div class="value" id="view-telefone">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h4 style="margin-bottom:10px;">Itens</h4>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Qtd</th>
+                                    <th>Preço Unit.</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-itens-list">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="view-footer-row">
+                        <div class="segmented" role="group" aria-label="Status do orçamento">
+                            <button type="button" id="seg-pendente" class="seg-option seg-pendente" data-status="pendente">Pendente</button>
+                            <button type="button" id="seg-aprovado" class="seg-option seg-aprovado" data-status="aprovado">Aprovado</button>
+                        </div>
+                        <div class="view-total"><span>Total:&nbsp;</span><strong id="view-total-valor">R$ 0,00</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Universal (Alert/Confirm) -->
+    <div class="modal" id="universal-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="universal-modal-title">Aviso</h3>
+                <button class="modal-close" onclick="closeModal('universal-modal')" aria-label="Fechar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="universal-modal-message"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="universal-cancel" style="display:none">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="universal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+    <script src="assets/js/print.js"></script>
+    <!-- Section-specific scripts (override and organize per section) -->
+    <script src="assets/js/sections/dashboard.js"></script>
+    <script src="assets/js/sections/orcamentos.js"></script>
+    <script src="assets/js/sections/clientes.js"></script>
+    <script src="assets/js/sections/pecas.js"></script>
+    <script src="assets/js/sections/servicos.js"></script>
+    <script src="assets/js/sections/configuracoes.js"></script>
+    <script src="assets/js/components/footer.js"></script>
 </body>
 </html>

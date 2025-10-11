@@ -1,0 +1,9 @@
+/* Section: Clientes specific styles */
+.client-search { position: relative; }
+.client-search input[type="text"] { width: 100%; }
+.client-suggestions { display:none; position:absolute; top: calc(100% + 6px); left:0; right:0; background:#fff; border:1px solid var(--border-color); border-radius:10px; box-shadow: var(--shadow-md); max-height: 280px; overflow:auto; z-index: 10; }
+.client-suggestions.active { display: block; }
+.client-suggestion-item { display:flex; justify-content: space-between; gap:12px; padding:10px 12px; cursor: pointer; }
+.client-suggestion-item:hover { background:#f8fafc; }
+.client-suggestion-name { font-weight:600; color: var(--text-primary); }
+.client-suggestion-meta { font-size:12px; color: var(--text-secondary); }

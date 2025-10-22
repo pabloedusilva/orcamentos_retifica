@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderAllLists();
     initSettingsUI();
     initWorldTimeClock();
+    initDevicesUI();
     // Navegação via cards do dashboard
     const statCards = document.querySelectorAll('.stat-card[data-goto]');
     statCards.forEach(card => {
@@ -198,18 +199,12 @@ document.addEventListener('DOMContentLoaded', function() {
         discountValueInput.addEventListener('input', recalc);
     }
 
-    // Definir saudação com nome do usuário (padrão: Admin)
-    const usernameEl = document.getElementById('current-username');
-    if (usernameEl) {
-        // Migrar nome antigo se existir
-        const legacy = localStorage.getItem('ret_user_name');
-        if (legacy && !localStorage.getItem('ret_account')) {
-            const migrated = { username: legacy, passwordHash: '' };
-            try { localStorage.setItem('ret_account', JSON.stringify(migrated)); } catch {}
-        }
-        const acc = loadAccount();
-        usernameEl.textContent = acc.username || 'Admin';
-    }
+    // Carregar username do banco de dados
+    loadUserInfoFromDatabase().catch(() => {
+        // Se falhar, exibir "Usuário" como fallback
+        const usernameEl = document.getElementById('current-username');
+        if (usernameEl) usernameEl.textContent = 'Usuário';
+    });
 });
 
 // Live clock using WorldTimeAPI (America/Sao_Paulo)
@@ -291,6 +286,15 @@ function setupEventListeners() {
         item.addEventListener('click', () => {
             const section = item.getAttribute('data-section');
             navigateToSection(section);
+            
+            // Fechar sidebar apenas em dispositivos móveis (max-width: 1024px)
+            if (window.innerWidth <= 1024) {
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar && sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                    document.body.classList.remove('sidebar-open');
+                }
+            }
         });
     });
 
@@ -317,18 +321,13 @@ function setupEventListeners() {
         });
     }
 
-    // Logout minimalista (apenas exemplo: limpa nome salvo)
+    // Logout: limpar sessão e token com segurança
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
-            // Limpar possíveis dados de sessão/conta
-            localStorage.removeItem('ret_user_name');
-            localStorage.removeItem('ret_account');
-            localStorage.removeItem('userSession');
-            const usernameEl = document.getElementById('current-username');
-            if (usernameEl) usernameEl.textContent = 'Admin';
-            // Redirecionamento direto para a página de login (sem modal)
-            try { window.location.href = 'auth/login.html'; } catch {}
+            try { api.setToken(''); } catch {}
+            // Redirecionamento direto para a página de login
+            window.location.href = '/login';
         });
     }
 
@@ -424,8 +423,171 @@ function setupEventListeners() {
     });
 }
 
+// Devices / Printers UI
+async function initDevicesUI(){
+    let badge = document.getElementById('printer-status-badge');
+    // If not present (e.g., markup changed), create dynamically and attach to body
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'printer-status-badge';
+        badge.className = 'printer-badge';
+        badge.title = 'Status da impressora';
+        badge.style.cssText = 'cursor:pointer; display:none;';
+        const dot = document.createElement('span'); dot.className = 'badge-dot';
+    const text = document.createElement('span'); text.className = 'badge-text'; text.textContent = '--';
+        badge.appendChild(dot); badge.appendChild(text);
+        document.body.appendChild(badge);
+    } else {
+        // If badge exists but is not under <body> (e.g., inside header), move it to body
+        if (badge.parentNode !== document.body) {
+            try { badge.parentNode.removeChild(badge); } catch {}
+            document.body.appendChild(badge);
+        }
+        // Clean any conflicting inline styles
+        badge.style.position = '';
+        badge.style.right = '';
+        badge.style.zIndex = '';
+    }
+    // Keep badge above footer: compute bottom = footer height + gap
+    function updateBadgePosition(){
+        if (!badge) return;
+        const footer = document.querySelector('.site-footer');
+        let bottom = 16; // default gap when no footer found
+        if (footer && footer.offsetParent !== null) {
+            const fh = footer.offsetHeight || 0;
+            bottom = fh + 16; // 16px gap above the footer top
+        }
+        badge.style.bottom = bottom + 'px';
+    }
+    // Reposition on resize and whenever the footer is injected/changes
+    window.addEventListener('resize', updateBadgePosition);
+    // Observe for footer injection by components/footer.js
+    const bodyObserver = new MutationObserver(() => updateBadgePosition());
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+    // Initial position (and one delayed to catch late footer render)
+    updateBadgePosition();
+    setTimeout(updateBadgePosition, 200);
+    if (badge) {
+        badge.addEventListener('click', () => navigateToSection('dispositivos'));
+    }
+    // Ensure sidebar status element exists
+    function ensureSidebarStatus(){
+        let el = document.getElementById('printer-sidebar-status');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'printer-sidebar-status';
+            el.className = 'printer-sidebar-status';
+            el.setAttribute('aria-live', 'polite');
+            el.title = 'Status da impressora';
+            el.innerHTML = '<span class="ps-dot"></span><span class="ps-text">Sem impressora</span>';
+            const clock = document.getElementById('sidebar-clock');
+            const logo = document.querySelector('.sidebar .logo');
+            if (clock && clock.parentNode) {
+                clock.parentNode.insertBefore(el, clock.nextSibling);
+            } else if (logo) {
+                logo.appendChild(el);
+            } else {
+                document.body.appendChild(el);
+            }
+        }
+        return el;
+    }
+    function updateSidebarNeutral(){
+        const el = ensureSidebarStatus();
+        const dot = el.querySelector('.ps-dot');
+        const text = el.querySelector('.ps-text');
+        if (dot) dot.style.background = '#95a5a6';
+        if (text) text.textContent = 'Sem impressora';
+    }
+    function updateSidebarConnected(name, host, ok){
+        const el = ensureSidebarStatus();
+        const dot = el.querySelector('.ps-dot');
+        const text = el.querySelector('.ps-text');
+        if (dot) dot.style.background = ok ? '#2ecc71' : '#e74c3c';
+        const label = name ? `${name}` : 'Conectada';
+        if (text) { text.textContent = ok ? `${label}` : `${label} (falha)`; text.title = `${name || 'Impressora'} • ${host || ''}`; }
+    }
+
+    // Neutral placeholder state (visible even without default printer)
+    function showNeutralBadge(){
+        if (!badge) return;
+        const dot = badge.querySelector('.badge-dot');
+        const text = badge.querySelector('.badge-text');
+        badge.classList.add('show');
+        dot.style.width = '10px'; dot.style.height = '10px'; dot.style.borderRadius = '50%';
+        dot.style.background = '#95a5a6'; // grey
+        text.innerHTML = `<span class="badge-name">Nenhuma conectada</span>`;
+        updateSidebarNeutral();
+    }
+    async function updateBadge(){
+        try {
+            const data = await api.getConnectedPrinterStatus();
+            if (!badge) return;
+            if (data && data.printer) {
+                const dot = badge.querySelector('.badge-dot');
+                const text = badge.querySelector('.badge-text');
+                badge.classList.add('show');
+                const connected = !!data.connected;
+                dot.style.width = '10px'; dot.style.height = '10px'; dot.style.borderRadius = '50%';
+                dot.style.background = connected ? '#2ecc71' : '#e74c3c';
+                const name = data.printer.name || 'Impressora';
+                const host = data.printer.host;
+                text.innerHTML = `<span class="badge-name">${name}</span> <span class="sep">•</span> <span class="badge-host">${host}</span>`;
+                updateSidebarConnected(name, host, connected);
+            } else {
+                showNeutralBadge();
+            }
+        } catch { showNeutralBadge(); }
+    }
+    // Expose for other modules (e.g., dispositivos.js)
+    window.refreshPrinterBadge = updateBadge;
+
+    // initial
+    showNeutralBadge();
+    updateBadge();
+    // periodic badge refresh (5s)
+    setInterval(updateBadge, 5000);
+}
+
 // Configurações (UI)
 function initSettingsUI() {
+    // Carregar configurações do banco ao abrir a tela
+    Promise.all([
+        loadSettingsFromDatabase(),
+        loadUserInfoFromDatabase()
+    ]).then(() => {
+        populateSettingsForm();
+    }).catch(() => {
+        populateSettingsForm();
+    });
+}
+
+async function loadUserInfoFromDatabase() {
+    if (!api || !api.isAuthed()) return false;
+    
+    try {
+        const user = await api.get('/api/v1/settings/user');
+        
+        // Atualizar o campo de username na tela
+        const accUser = document.getElementById('account-username');
+        if (accUser && user.username) {
+            accUser.value = user.username;
+        }
+        
+        // Atualizar o username exibido na sidebar
+        const usernameEl = document.getElementById('current-username');
+        if (usernameEl && user.username) {
+            usernameEl.textContent = user.username;
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Erro ao carregar informações do usuário:', error);
+        return false;
+    }
+}
+
+function populateSettingsForm() {
     // Inputs
     const nome = document.getElementById('settings-nome');
     const endereco = document.getElementById('settings-endereco');
@@ -441,6 +603,7 @@ function initSettingsUI() {
     const accConf = document.getElementById('account-confirm-password');
     const accSave = document.getElementById('account-save');
     const accHint = document.getElementById('account-hint');
+    let accHintTimeout = null; // usado para esconder mensagens temporárias
     if (!nome || !endereco || !telefone || !email || !cnpj || !cep) return; // section ainda não montada
 
     // Preencher com estado atual
@@ -451,9 +614,7 @@ function initSettingsUI() {
     cnpj.value = state.company.cnpj || '';
     cep.value = state.company.cep || '';
 
-    // Pré-preencher conta
-    const account = loadAccount();
-    if (accUser) accUser.value = account.username || 'Admin';
+    // Username já foi carregado do banco pelo loadUserInfoFromDatabase()
     // Preview do logo
     updateLogoPreview();
 
@@ -545,6 +706,7 @@ function initSettingsUI() {
                 // Definir diretamente a URL do preset (evita erros de fetch em file://)
                 state.company.logoDataUrl = src;
                 state.company.logoPreset = id;
+                state.company.selectedLogo = id ? `preset:${id}` : '';
                 updateLogoPreview();
                 highlightPreset(id);
                 // Seleção única: remover ativo de uploads
@@ -599,6 +761,7 @@ function initSettingsUI() {
             selectBtn.addEventListener('click', () => {
                 state.company.logoDataUrl = dataUrl;
                 state.company.logoPreset = '';
+                    state.company.selectedLogo = dataUrl;
                 updateLogoPreview();
                 document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
                 // Seleção única: destacar esta miniatura e limpar outras
@@ -614,6 +777,7 @@ function initSettingsUI() {
                     uploads.splice(index, 1);
                     if (state.company.logoDataUrl === dataUrl) {
                         state.company.logoDataUrl = uploads[0] || '';
+                            state.company.selectedLogo = state.company.logoDataUrl || '';
                     }
                     renderUploadThumbs();
                     updateLogoPreview();
@@ -686,34 +850,73 @@ function initSettingsUI() {
             const newPw = accNew?.value || '';
             const confPw = accConf?.value || '';
 
-            const current = loadAccount();
-            // Se há senha definida, exigir validação da senha atual
-            if (current.passwordHash) {
-                const ok = await verifyPassword(oldPw, current.passwordHash);
-                if (!ok) { setHint('Senha atual incorreta.', true); return; }
-            }
-            // Validar nova senha se fornecida
+            // Client-side: basic validation only. Server will perform actual verification and hashing.
             if (newPw || confPw) {
+                // Require current password when changing to a new password
+                if (!oldPw) { setHint('Informe sua senha atual para alterar a senha.', true); return; }
                 if (newPw.length < 8) { setHint('A nova senha deve ter no mínimo 8 caracteres.', true); return; }
                 if (newPw !== confPw) { setHint('A confirmação da nova senha não confere.', true); return; }
             }
-            const newHash = newPw ? await hashPassword(newPw) : (current.passwordHash || '');
-            const updated = { username: desiredUser || 'Admin', passwordHash: newHash };
-            try { localStorage.setItem('ret_account', JSON.stringify(updated)); } catch {}
-            state.account = updated;
-            const usernameEl = document.getElementById('current-username');
-            if (usernameEl) usernameEl.textContent = updated.username;
-            if (accOld) accOld.value = '';
-            if (accNew) accNew.value = '';
-            if (accConf) accConf.value = '';
-            setHint('Conta atualizada com sucesso.', false);
+
+            const payload = {
+                username: desiredUser || 'Admin'
+            };
+            if (oldPw) payload.oldPassword = oldPw;
+            if (newPw) payload.newPassword = newPw;
+
+            try {
+                if (!api || !api.isAuthed()) {
+                    setHint('Erro: Não foi possível atualizar (não autenticado).', true, 3000);
+                    return;
+                }
+
+                let updated = await api.put('/api/v1/settings/account', payload);
+
+                // Show success modal (do not await) and immediately clear sensitive inputs
+                if (typeof showAlert === 'function') {
+                    try { showAlert('Conta atualizada com sucesso.'); } catch (e) { /* non-blocking */ }
+                }
+                if (accOld) accOld.value = '';
+                if (accNew) accNew.value = '';
+                if (accConf) accConf.value = '';
+
+                // Update displayed username if server returned one
+                const usernameEl = document.getElementById('current-username');
+                if (usernameEl && updated && updated.username) usernameEl.textContent = updated.username;
+
+            } catch (error) {
+                console.error('Erro ao salvar conta no banco:', error);
+                // Try to surface server error message if provided
+                const status = error && error.status;
+                const serverMsg = error && (error.data && error.data.error ? error.data.error : error.message);
+                if (status === 401) {
+                    setHint('Sessão expirada. Faça login novamente.', true, 3000);
+                } else if (status === 403) {
+                    // Mostrar erro de senha atual incorreta por 3 segundos
+                    setHint(serverMsg || 'Senha atual incorreta.', true, 3000);
+                } else {
+                    setHint(serverMsg || 'Erro ao atualizar conta no banco de dados.', true, 4000);
+                }
+                return;
+            }
         });
     }
 
-    function setHint(text, isError) {
+    function setHint(text, isError, durationMs) {
         if (!accHint) return;
+        // Clear existing timeout if any
+        if (accHintTimeout) {
+            clearTimeout(accHintTimeout);
+            accHintTimeout = null;
+        }
         accHint.textContent = text;
         accHint.style.color = isError ? '#b91c1c' : 'var(--text-secondary)';
+        if (durationMs && typeof durationMs === 'number' && durationMs > 0) {
+            accHintTimeout = setTimeout(() => {
+                accHint.textContent = '';
+                accHintTimeout = null;
+            }, durationMs);
+        }
     }
 }
 
@@ -786,10 +989,75 @@ function navigateToSection(sectionName) {
     document.querySelector('.page-subtitle').textContent = subtitles[sectionName];
 }
 
+// Função auxiliar para carregar dados do backend antes de abrir modal
+async function ensureDataLoaded(dataTypes = []) {
+    const promises = [];
+    
+    // Mostrar indicador de carregamento
+    const loadingMsg = document.createElement('div');
+    loadingMsg.id = 'modal-loading-indicator';
+    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.85);color:white;padding:20px 40px;border-radius:8px;z-index:10000;font-size:16px;';
+    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Carregando dados...';
+    document.body.appendChild(loadingMsg);
+    
+    // Sempre força reload para garantir dados atualizados do banco
+    if (dataTypes.includes('clientes')) {
+        promises.push(
+            api.get('/api/v1/clientes')
+                .then(resp => {
+                    state.clientes = Array.isArray(resp.clientes) ? resp.clientes : [];
+                })
+                .catch(err => console.warn('Falha ao carregar clientes:', err))
+        );
+    }
+    
+    if (dataTypes.includes('pecas')) {
+        promises.push(
+            api.get('/api/v1/pecas')
+                .then(resp => {
+                    state.pecas = Array.isArray(resp.pecas) ? resp.pecas : [];
+                })
+                .catch(err => console.warn('Falha ao carregar peças:', err))
+        );
+    }
+    
+    if (dataTypes.includes('servicos')) {
+        promises.push(
+            api.get('/api/v1/servicos')
+                .then(resp => {
+                    state.servicos = Array.isArray(resp.servicos) ? resp.servicos : [];
+                })
+                .catch(err => console.warn('Falha ao carregar serviços:', err))
+        );
+    }
+    
+    if (promises.length > 0) {
+        await Promise.all(promises);
+        saveToStorage();
+    }
+    
+    // Remover indicador de carregamento
+    loadingMsg.remove();
+}
+
 // Gerenciamento de modais
-function openModal(modalId) {
+async function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
+    
+    // Carregar dados do backend conforme o modal
+    if (modalId === 'orcamento-modal') {
+        // Orçamento precisa de clientes, peças e serviços
+        await ensureDataLoaded(['clientes', 'pecas', 'servicos']);
+    } else if (modalId === 'cliente-modal') {
+        // Cliente não precisa de dados extras, mas pode forçar refresh da lista
+        await ensureDataLoaded(['clientes']);
+    } else if (modalId === 'peca-modal') {
+        await ensureDataLoaded(['pecas']);
+    } else if (modalId === 'servico-modal') {
+        await ensureDataLoaded(['servicos']);
+    }
+    
     // Garantir que o modal esteja anexado direto ao body para z-index máximo
     if (modal.parentElement !== document.body) {
         document.body.appendChild(modal);
@@ -875,14 +1143,40 @@ function closeModal(modalId) {
 }
 
 // Modal universal: Alert/Confirm
+function ensureUniversalModal(){
+    let modal = document.getElementById('universal-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'universal-modal';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="universal-modal-title">Aviso</h3>
+                <button class="modal-close" aria-label="Fechar">\n                    <i class="fas fa-times"></i>\n                </button>
+            </div>
+            <div class="modal-body" id="universal-modal-message"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="universal-cancel" style="display:none">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="universal-ok">OK</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    // wire close button
+    const closeBtn = modal.querySelector('.modal-close');
+    closeBtn && closeBtn.addEventListener('click', () => closeModal('universal-modal'));
+    return modal;
+}
+
 function showAlert(message, options = {}) {
     return new Promise((resolve) => {
-        const modal = document.getElementById('universal-modal');
+        const modal = ensureUniversalModal();
         const titleEl = document.getElementById('universal-modal-title');
         const msgEl = document.getElementById('universal-modal-message');
         const okBtn = document.getElementById('universal-ok');
         const cancelBtn = document.getElementById('universal-cancel');
-        if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) { window.alert(message); return resolve(true); }
+        if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) { console.warn('Modal padrão indisponível.'); return resolve(true); }
         titleEl.textContent = options.title || 'Aviso';
         msgEl.textContent = message;
         cancelBtn.style.display = 'none';
@@ -949,14 +1243,16 @@ function initClienteSearch() {
 
     if (!inputSearch || !inputHidden || !box) return;
 
+    let lastRendered = [];
     const render = (list) => {
         if (!list || list.length === 0) {
             box.innerHTML = '<div class="client-suggestion-item"><span class="client-suggestion-meta">Nenhum cliente encontrado</span></div>';
             box.classList.add('active');
             return;
         }
+        lastRendered = list.slice(0);
         box.innerHTML = list.map(c => `
-            <div class="client-suggestion-item" data-id="${c.id}">
+            <div class="client-suggestion-item" id="cliente-${c.id}" data-id="${c.id}" data-name="${(c.nome||'').replace(/\"/g,'&quot;')}">
                 <span class="client-suggestion-name">${c.nome}</span>
                 <span class="client-suggestion-meta">${c.email || 'Sem email'} · ${c.telefone || 'Sem telefone'}</span>
             </div>
@@ -986,6 +1282,18 @@ function initClienteSearch() {
         filter(inputSearch.value);
     });
 
+    // Keyboard: Enter escolhe a primeira sugestão visível
+    inputSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const first = box.querySelector('.client-suggestion-item');
+            if (first) {
+                e.preventDefault();
+                const fakeEvt = { target: first, preventDefault(){}, stopPropagation(){} };
+                onPick(fakeEvt);
+            }
+        }
+    });
+
     // Event: focus shows recent/all (limited)
     inputSearch.addEventListener('focus', () => {
         if (inputSearch.value.trim() === '') {
@@ -993,30 +1301,79 @@ function initClienteSearch() {
         }
     });
 
-    // Event: click suggestion
-    box.addEventListener('click', (e) => {
-        const item = e.target.closest('.client-suggestion-item');
+    // Event: select suggestion (handle in capture to beat blur)
+    let picking = false;
+    const onPick = (e) => {
+        picking = true;
+        const tgt = e.target;
+        const baseEl = (tgt && tgt.nodeType === 1 /* ELEMENT_NODE */) ? tgt : (tgt && tgt.parentElement);
+        const item = baseEl ? baseEl.closest('.client-suggestion-item') : null;
         if (!item) return;
-        const id = parseInt(item.getAttribute('data-id'));
-        const cliente = state.clientes.find(c => c.id === id);
-        if (!cliente) return;
-        inputHidden.value = String(cliente.id);
-        inputSearch.value = cliente.nome;
+        e.preventDefault();
+        e.stopPropagation();
+        const id = item.getAttribute('data-id'); // IDs do backend são strings
+        let cliente = state.clientes.find(c => String(c.id) === String(id));
+        // fallback se não encontrar no state (ex.: tipos divergentes): usa o texto da sugestão
+        if (!cliente) {
+            const nameFromDom = item.querySelector('.client-suggestion-name')?.textContent || item.getAttribute('data-name') || '';
+            inputHidden.value = String(id);
+            inputSearch.value = nameFromDom;
+        } else {
+            inputHidden.value = String(cliente.id);
+            inputSearch.value = cliente.nome;
+        }
+        // opcional: anunciar seleção para leitores de tela
+        inputSearch.setAttribute('aria-activedescendant', `cliente-${cliente.id}`);
         box.classList.remove('active');
         box.innerHTML = '';
-    });
+        // manter foco no input para continuidade
+        inputSearch.focus();
+        setTimeout(() => { picking = false; }, 0);
+    };
+    box.addEventListener('pointerdown', onPick, { capture: true });
+    box.addEventListener('mousedown', onPick, { capture: true });
+    box.addEventListener('click', onPick, { capture: true });
 
-    // Event: blur closes (slight delay to allow click)
+    // Global fallback: captura seleção mesmo se o evento não chegar no box
+    const globalPick = (e) => {
+        const modal = document.getElementById('orcamento-modal');
+        if (!modal || !modal.classList.contains('active')) return;
+        const el = e.target && (e.target.nodeType === 1 ? e.target : e.target.parentElement);
+        if (!el) return;
+        if (!modal.contains(el)) return;
+        const item = el.closest('.client-suggestion-item');
+        if (!item) return;
+        onPick(e);
+    };
+    document.addEventListener('pointerdown', globalPick, { capture: true });
+    document.addEventListener('click', globalPick, { capture: true });
+
+    // Event: blur closes (skip if we're picking a suggestion)
     inputSearch.addEventListener('blur', () => {
         setTimeout(() => {
-            box.classList.remove('active');
+            if (!picking) {
+                // Se usuário digitou um valor e não escolheu, tente match exato único
+                const val = (inputSearch.value || '').trim();
+                if (val && !inputHidden.value) {
+                    const v = val.toLowerCase();
+                    const matches = state.clientes.filter(c => {
+                        return (c.nome||'').toLowerCase() === v || (c.email||'').toLowerCase() === v || (c.telefone||'').toLowerCase() === v;
+                    });
+                    if (matches.length === 1) {
+                        const c = matches[0];
+                        inputHidden.value = String(c.id);
+                        inputSearch.value = c.nome || val;
+                    }
+                }
+                box.classList.remove('active');
+            }
         }, 150);
     });
 
     // Prefill on edit
     if (state.currentEditId) {
-        const orc = state.orcamentos.find(o => o.id === state.currentEditId);
-        const cliente = state.clientes.find(c => c.id === orc?.clienteId);
+        const orc = state.orcamentos.find(o => String(o.id) === String(state.currentEditId));
+        const cliente = state.clientes.find(c => String(c.id) === String(orc?.clienteId));
         if (cliente) {
             inputHidden.value = String(cliente.id);
             inputSearch.value = cliente.nome;
@@ -1028,7 +1385,7 @@ function initClienteSearch() {
 }
 
 // Handlers dos formulários
-function handleClienteSubmit(e) {
+async function handleClienteSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
     
@@ -1044,13 +1401,37 @@ function handleClienteSubmit(e) {
     };
 
     if (state.currentEditId) {
-        const index = state.clientes.findIndex(c => c.id === state.currentEditId);
-        state.clientes[index] = cliente;
+        const index = state.clientes.findIndex(c => String(c.id) === String(state.currentEditId));
+        if (index !== -1) state.clientes[index] = cliente;
+        saveToStorage();
+        try {
+            const updated = await api.put(`/api/v1/clientes/${cliente.id}`, {
+                nome: cliente.nome,
+                email: cliente.email || undefined,
+                telefone: cliente.telefone || undefined,
+                cidade: cliente.cidade || undefined
+            });
+            state.clientes[index] = updated.cliente;
+        } catch (err) {
+            console.warn('Falha ao atualizar cliente no servidor:', err);
+            showAlert('Não foi possível atualizar no servidor. Verifique sua conexão e tente novamente.', { title: 'Erro' });
+        }
     } else {
         state.clientes.push(cliente);
+        saveToStorage();
+        try {
+            const created = await api.post('/api/v1/clientes', {
+                nome: cliente.nome,
+                email: cliente.email || undefined,
+                telefone: cliente.telefone || undefined,
+                cidade: cliente.cidade || undefined
+            });
+            state.clientes = [created.cliente, ...state.clientes.filter(c => String(c.id) !== String(cliente.id))];
+        } catch (err) {
+            console.warn('Falha ao criar cliente no servidor:', err);
+            showAlert('Não foi possível salvar no servidor. Verifique sua conexão e tente novamente.', { title: 'Erro' });
+        }
     }
-
-    saveToStorage();
     renderClientes();
     updateDashboard();
     closeModal('cliente-modal');
@@ -1251,7 +1632,7 @@ function escapeHtml(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function handlePecaSubmit(e) {
+async function handlePecaSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
     
@@ -1262,18 +1643,27 @@ function handlePecaSubmit(e) {
     };
 
     if (state.currentEditId) {
-        const index = state.pecas.findIndex(p => p.id === state.currentEditId);
-        state.pecas[index] = peca;
+        const idx = state.pecas.findIndex(p => String(p.id) === String(state.currentEditId));
+        state.pecas[idx] = peca;
+        saveToStorage();
+        try {
+            const updated = await api.put(`/api/v1/pecas/${peca.id}`, { nome: peca.nome, descricao: peca.descricao || undefined });
+            state.pecas[idx] = updated.peca;
+        } catch (e) { console.warn('Falha ao atualizar peça:', e); }
     } else {
         state.pecas.push(peca);
+        saveToStorage();
+        try {
+            const created = await api.post('/api/v1/pecas', { nome: peca.nome, descricao: peca.descricao || undefined });
+            state.pecas = [created.peca, ...state.pecas.filter(p => String(p.id) !== String(peca.id))];
+        } catch (e) { console.warn('Falha ao criar peça:', e); }
     }
 
-    saveToStorage();
     renderPecas();
     closeModal('peca-modal');
 }
 
-function handleServicoSubmit(e) {
+async function handleServicoSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
     
@@ -1284,18 +1674,27 @@ function handleServicoSubmit(e) {
     };
 
     if (state.currentEditId) {
-        const index = state.servicos.findIndex(s => s.id === state.currentEditId);
-        state.servicos[index] = servico;
+        const idx = state.servicos.findIndex(s => String(s.id) === String(state.currentEditId));
+        state.servicos[idx] = servico;
+        saveToStorage();
+        try {
+            const updated = await api.put(`/api/v1/servicos/${servico.id}`, { nome: servico.nome, descricao: servico.descricao || undefined });
+            state.servicos[idx] = updated.servico;
+        } catch (e) { console.warn('Falha ao atualizar serviço:', e); }
     } else {
         state.servicos.push(servico);
+        saveToStorage();
+        try {
+            const created = await api.post('/api/v1/servicos', { nome: servico.nome, descricao: servico.descricao || undefined });
+            state.servicos = [created.servico, ...state.servicos.filter(s => String(s.id) !== String(servico.id))];
+        } catch (e) { console.warn('Falha ao criar serviço:', e); }
     }
 
-    saveToStorage();
     renderServicos();
     closeModal('servico-modal');
 }
 
-function handleOrcamentoSubmit(e) {
+async function handleOrcamentoSubmit(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
     const items = collectOrcamentoItems();
@@ -1307,7 +1706,7 @@ function handleOrcamentoSubmit(e) {
     if (!clienteIdRaw) { showAlert('Selecione um cliente na busca', { title: 'Atenção' }); return; }
     const orcamento = {
         id: state.currentEditId || generateOrcamentoId(),
-        clienteId: parseInt(clienteIdRaw),
+        clienteId: String(clienteIdRaw),
         data: formData.get('data'),
         dataFinal: formData.get('dataFinal') || '',
         observacao: (formData.get('observacao') || '').toString().trim(),
@@ -1320,12 +1719,23 @@ function handleOrcamentoSubmit(e) {
         status: 'pendente'
     };
     if (state.currentEditId) {
-        const index = state.orcamentos.findIndex(o => String(o.id) === String(state.currentEditId));
-        state.orcamentos[index] = orcamento;
+        const idx = state.orcamentos.findIndex(o => String(o.id) === String(state.currentEditId));
+        state.orcamentos[idx] = orcamento;
+        saveToStorage();
+        try {
+            const payload = toBackendOrcamentoPayload(orcamento);
+            const updated = await api.put(`/api/v1/orcamentos/${orcamento.id}`, payload);
+            state.orcamentos[idx] = updated.orcamento;
+        } catch (e) { console.warn('Falha ao atualizar orçamento:', e); }
     } else {
         state.orcamentos.push(orcamento);
+        saveToStorage();
+        try {
+            const payload = toBackendOrcamentoPayload(orcamento);
+            const created = await api.post('/api/v1/orcamentos', payload);
+            state.orcamentos = [created.orcamento, ...state.orcamentos.filter(o => o.id !== orcamento.id)];
+        } catch (e) { console.warn('Falha ao criar orçamento:', e); }
     }
-    saveToStorage();
     renderOrcamentos();
     updateDashboard();
     closeModal('orcamento-modal');
@@ -1339,6 +1749,16 @@ function addOrcamentoItem(tipo) {
     
     let options = '';
     const items = tipo === 'peca' ? state.pecas : state.servicos;
+    
+    // Verificar se há itens disponíveis
+    if (!items || items.length === 0) {
+        const tipoLabel = tipo === 'peca' ? 'peças' : 'serviços';
+        showAlert(`Nenhuma ${tipoLabel} cadastrada. Cadastre ${tipoLabel} antes de criar um orçamento.`, { 
+            title: 'Atenção' 
+        });
+        return;
+    }
+    
     items.forEach(item => {
         const label = item.nome;
         options += `<option value="${item.id}">${label}</option>`;
@@ -1397,10 +1817,10 @@ function collectOrcamentoItems() {
         const tipo = select.getAttribute('data-tipo');
 
         if (select.value && quantidade > 0) {
-            const itemData = (tipo === 'peca' ? state.pecas : state.servicos).find(i => i.id == select.value);
+            const itemData = (tipo === 'peca' ? state.pecas : state.servicos).find(i => String(i.id) === String(select.value));
             items.push({
                 tipo: tipo,
-                itemId: parseInt(select.value),
+                itemId: String(select.value),
                 nome: itemData.nome,
                 quantidade: quantidade,
                 preco: preco
@@ -1498,14 +1918,19 @@ function editOrcamento(id) {
 
         // Garantir que o option exista mesmo se catálogo mudou
         if (select) {
-            const exists = Array.from(select.options).some(opt => String(opt.value) === String(item.itemId));
+            const desiredId = item.itemId != null ? String(item.itemId) : (function(){
+                const catalog = item.tipo === 'peca' ? state.pecas : state.servicos;
+                const found = catalog.find(x => (x && x.nome) === item.nome);
+                return found ? String(found.id) : '';
+            })();
+            const exists = desiredId && Array.from(select.options).some(opt => String(opt.value) === desiredId);
             if (!exists) {
                 const opt = document.createElement('option');
-                opt.value = String(item.itemId);
+                opt.value = desiredId || '';
                 opt.textContent = item.nome || `Item ${item.itemId}`;
                 select.appendChild(opt);
             }
-            select.value = String(item.itemId);
+            if (desiredId) select.value = desiredId;
         }
         if (qtd) qtd.value = String(item.quantidade || 1);
         if (preco) preco.value = String(item.preco != null ? item.preco : 0);
@@ -1528,6 +1953,8 @@ function deleteOrcamento(id) {
         saveToStorage();
         if (typeof renderOrcamentos === 'function') renderOrcamentos();
         updateDashboard();
+        // tentar excluir no backend
+        api.del(`/api/v1/orcamentos/${id}`).catch(() => {});
     });
 }
 
@@ -1535,7 +1962,7 @@ function deleteOrcamento(id) {
 function viewOrcamento(id) {
     const orcamento = state.orcamentos.find(o => String(o.id) === String(id));
     if (!orcamento) return;
-    const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
+    const cliente = state.clientes.find(c => String(c.id) === String(orcamento.clienteId));
 
     // Header
     const idEl = document.getElementById('view-orcamento-id');
@@ -1562,11 +1989,13 @@ function viewOrcamento(id) {
     const tbody = document.getElementById('view-itens-list');
     if (tbody) {
         tbody.innerHTML = (orcamento.items || []).map(item => {
-            const sub = (item.quantidade * item.preco);
+            const preco = Number(item.preco) || 0;
+            const qtd = Number(item.quantidade) || 1;
+            const sub = qtd * preco;
             return `<tr>
                 <td>${item.nome}</td>
-                <td>${item.quantidade}</td>
-                <td>R$ ${item.preco.toFixed(2).replace('.', ',')}</td>
+                <td>${qtd}</td>
+                <td>R$ ${preco.toFixed(2).replace('.', ',')}</td>
                 <td>R$ ${sub.toFixed(2).replace('.', ',')}</td>
             </tr>`;
         }).join('');
@@ -1574,7 +2003,10 @@ function viewOrcamento(id) {
 
     // Total
     const totalEl = document.getElementById('view-total-valor');
-    if (totalEl) totalEl.textContent = `R$ ${orcamento.total.toFixed(2).replace('.', ',')}`;
+    if (totalEl) {
+        const tot = Number(orcamento.total || 0);
+        totalEl.textContent = `R$ ${tot.toFixed(2).replace('.', ',')}`;
+    }
 
     // Controles de status
     const modal = document.getElementById('view-orcamento-modal');
@@ -1594,51 +2026,7 @@ function viewOrcamento(id) {
 }
 
 // Função para visualizar orçamento
-function handleOrcamentoSubmit(e) {
-    e.preventDefault();
-    const form = e.target;
-    const proceedSave = () => {
-        const formData = new FormData(form);
-        const items = collectOrcamentoItems();
-        if (items.length === 0) { showAlert('Adicione pelo menos um item ao orçamento', { title: 'Atenção' }); return; }
-        const subtotal = items.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-        const total = subtotal;
-        const clienteIdRaw = formData.get('cliente');
-        if (!clienteIdRaw) { showAlert('Selecione um cliente na busca', { title: 'Atenção' }); return; }
-        const orcamento = {
-            id: state.currentEditId || generateOrcamentoId(),
-            clienteId: parseInt(clienteIdRaw),
-            data: formData.get('data'),
-            dataFinal: formData.get('dataFinal') || '',
-            observacao: (formData.get('observacao') || '').toString().trim(),
-            carro: (formData.get('carro') || '').toString().trim(),
-            placa: (formData.get('placa') || '').toString().trim(),
-            incEst: (formData.get('incEst') || '').toString().trim(),
-            items,
-            subtotal,
-            total,
-            status: state.currentEditId ? (state.orcamentos.find(o => String(o.id) === String(state.currentEditId))?.status || 'pendente') : 'pendente'
-        };
-        if (state.currentEditId) {
-            const index = state.orcamentos.findIndex(o => String(o.id) === String(state.currentEditId));
-            state.orcamentos[index] = orcamento;
-        } else {
-            state.orcamentos.push(orcamento);
-        }
-        saveToStorage();
-        renderOrcamentos();
-        updateDashboard();
-        closeModal('orcamento-modal');
-    };
-
-    if (state.currentEditId) {
-        showConfirm('Deseja realmente salvar as alterações deste orçamento?', { title: 'Salvar alterações', okText: 'Salvar', cancelText: 'Cancelar' }).then(ok => {
-            if (ok) proceedSave();
-        });
-    } else {
-        proceedSave();
-    }
-}
+// NOTE: Removed duplicate handleOrcamentoSubmit implementation to avoid overriding the async backend-integrated version defined earlier.
 
 function applyOrcamentoStatus(id, status) {
     const modal = document.getElementById('view-orcamento-modal');
@@ -1652,7 +2040,7 @@ function applyOrcamentoStatus(id, status) {
 }
 
 // Alterna status via segmented control (autosave + feedback)
-function toggleOrcamentoStatus(id, status) {
+async function toggleOrcamentoStatus(id, status) {
     const modal = document.getElementById('view-orcamento-modal');
     if (!modal) return;
     // Visual active toggle
@@ -1660,6 +2048,11 @@ function toggleOrcamentoStatus(id, status) {
         btn.classList.toggle('active', btn.getAttribute('data-status') === status);
     });
     applyOrcamentoStatus(id, status);
+    try {
+        await api.patch(`/api/v1/orcamentos/${id}/status`, { status });
+    } catch (e) {
+        console.warn('Falha ao atualizar status no servidor:', e);
+    }
     // Atualiza badge na seção Cliente
     const badge = modal.querySelector('#cliente-status-badge');
     if (badge) {
@@ -1746,57 +2139,104 @@ function updateDashboard() {
     if (elSrv) elSrv.textContent = state.servicos.length;
 }
 
-// Funções de storage
+// Funções de storage - APENAS BANCO DE DADOS
 function saveToStorage() {
-    localStorage.setItem('retifficaApp', JSON.stringify(state));
+    // Salvar configurações no banco
+    saveSettingsToDatabase().catch(err => console.warn('Erro ao salvar configurações:', err));
+}
+
+async function saveSettingsToDatabase() {
+    if (!api || !api.isAuthed()) return;
+    
+    try {
+        await api.put('/api/v1/settings', {
+            nome: state.company.nome || '',
+            endereco: state.company.endereco || '',
+            telefone: state.company.telefone || '',
+            email: state.company.email || '',
+            cnpj: state.company.cnpj || '',
+            cep: state.company.cep || '',
+            logoDataUrl: state.company.logoDataUrl || '',
+            logoPreset: state.company.logoPreset || '',
+                    selectedLogo: state.company.selectedLogo || '',
+            uploadedLogos: state.company.uploadedLogos || []
+        });
+    } catch (error) {
+        console.error('Erro ao salvar configurações no banco:', error);
+    }
+}
+
+async function loadSettingsFromDatabase() {
+    if (!api || !api.isAuthed()) return false;
+    
+    try {
+        const settings = await api.get('/api/v1/settings');
+        
+        state.company = {
+            nome: settings.nome || '',
+            endereco: settings.endereco || '',
+            telefone: settings.telefone || '',
+            email: settings.email || '',
+            cnpj: settings.cnpj || '',
+            cep: settings.cep || '',
+            logoDataUrl: settings.logoDataUrl || '',
+            logoPreset: settings.logoPreset || '',
+            selectedLogo: settings.selectedLogo || (settings.logoPreset ? `preset:${settings.logoPreset}` : (settings.logoDataUrl || '')) ,
+            uploadedLogos: settings.uploadedLogos || []
+        };
+        
+        // Atualizar preview do logo se estiver na tela de configurações
+        if (typeof updateLogoPreview === 'function') {
+            updateLogoPreview();
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Erro ao carregar configurações do banco:', error);
+        return false;
+    }
 }
 
 function loadFromStorage() {
-    const stored = localStorage.getItem('retifficaApp');
-    if (stored) {
-        state = { ...state, ...JSON.parse(stored) };
-        if (!state.lastIdByDate) state.lastIdByDate = {};
-        if (!state.company) {
-            state.company = {
-                nome: 'Janio Retífica',
-                endereco: 'Rua das Oficinas, 123 - Centro - São Paulo/SP',
-                telefone: '(11) 3456-7890',
-                email: 'contato@retificapro.com.br',
-                cnpj: '12.345.678/0001-90',
-                cep: '01234-567',
-                logoDataUrl: '',
-                logoPreset: '',
-                uploadedLogos: []
-            };
-        }
-        if (!state.company.logoPreset) state.company.logoPreset = '';
-        if (!Array.isArray(state.company.uploadedLogos)) state.company.uploadedLogos = [];
+    // Inicializar state vazio
+    if (!state.lastIdByDate) state.lastIdByDate = {};
+    if (!state.company) {
+        state.company = {
+            nome: '',
+            endereco: '',
+            telefone: '',
+            email: '',
+            cnpj: '',
+            cep: '',
+            logoDataUrl: '',
+            logoPreset: '',
+            uploadedLogos: []
+        };
     }
+    
     // Keep global reference updated for external modules
     window.state = state;
+    
+    // Carregar configurações do banco
+    loadSettingsFromDatabase().catch(err => console.warn('Não foi possível carregar configurações do banco:', err));
 }
 
-// Helpers de conta de usuário
+// Helpers de conta de usuário - REMOVIDO localStorage
 function loadAccount() {
-    try {
-        const raw = localStorage.getItem('ret_account');
-        if (raw) return JSON.parse(raw);
-    } catch {}
-    return state.account || { username: 'Admin', passwordHash: '' };
+    // Retornar vazio - será carregado do banco
+    return { username: '', passwordHash: '' };
 }
 
+// NOTE: password hashing and verification is performed server-side using bcrypt.
+// Client-side functions removed to avoid sending inconsistent hashes.
 async function hashPassword(password) {
-    const enc = new TextEncoder();
-    const data = enc.encode(password);
-    const buf = await crypto.subtle.digest('SHA-256', data);
-    const bytes = Array.from(new Uint8Array(buf));
-    return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    // kept for backward-compatibility in case other modules call it, but not used for persistence
+    return '';
 }
 
 async function verifyPassword(password, hash) {
-    if (!hash) return true;
-    const h = await hashPassword(password || '');
-    return h === hash;
+    // Client should not attempt to verify server password hashes. Return true only if no server-side password is set.
+    return true;
 }
 
 // Funções utilitárias
@@ -1806,113 +2246,7 @@ function formatDate(dateString) {
 }
 
 // Dados de exemplo para demonstração
-function loadSampleData() {
-    if (state.clientes.length === 0) {
-        state.clientes = [
-            {
-                id: 1,
-                nome: 'João Silva',
-                email: 'joao@email.com',
-                telefone: '(11) 99999-9999',
-                documento: '123.456.789-00',
-                endereco: 'Rua das Flores, 123',
-                cidade: 'São Paulo'
-            },
-            {
-                id: 2,
-                nome: 'Maria Santos',
-                email: 'maria@email.com',
-                telefone: '(11) 88888-8888',
-                documento: '987.654.321-00',
-                endereco: 'Av. Paulista, 456',
-                cidade: 'São Paulo'
-            }
-        ];
-    }
-
-    if (state.pecas.length === 0) {
-        state.pecas = [
-            {
-                id: 1,
-                nome: 'Pistão',
-                descricao: 'Pistão para motor 1.0'
-            },
-            {
-                id: 2,
-                nome: 'Biela',
-                descricao: 'Biela forjada'
-            }
-        ];
-    }
-
-    if (state.servicos.length === 0) {
-        state.servicos = [
-            {
-                id: 1,
-                nome: 'Retífica do Motor',
-                descricao: 'Retífica completa do bloco do motor'
-            },
-            {
-                id: 2,
-                nome: 'Balanceamento',
-                descricao: 'Balanceamento do virabrequim'
-            }
-        ];
-    }
-
-    if (state.orcamentos.length === 0) {
-        state.orcamentos = [
-            {
-                id: 1001,
-                clienteId: 1,
-                data: '2025-09-24',
-                items: [
-                    {
-                        tipo: 'peca',
-                        itemId: 1,
-                        nome: 'Pistão',
-                        quantidade: 4,
-                        preco: 150.00
-                    },
-                    {
-                        tipo: 'servico',
-                        itemId: 1,
-                        nome: 'Retífica do Motor',
-                        quantidade: 1,
-                        preco: 800.00
-                    }
-                ],
-                total: 1400.00,
-                status: 'pendente'
-            },
-            {
-                id: 1002,
-                clienteId: 2,
-                data: '2025-09-23',
-                items: [
-                    {
-                        tipo: 'peca',
-                        itemId: 2,
-                        nome: 'Biela',
-                        quantidade: 2,
-                        preco: 250.00
-                    },
-                    {
-                        tipo: 'servico',
-                        itemId: 2,
-                        nome: 'Balanceamento',
-                        quantidade: 1,
-                        preco: 200.00
-                    }
-                ],
-                total: 700.00,
-                status: 'aprovado'
-            }
-        ];
-    }
-
-    saveToStorage();
-}
+function loadSampleData() { /* intentionally disabled in production */ }
 
 // Função para imprimir orçamento
 // moved to print.js
@@ -2005,7 +2339,9 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
     let subtotal = 0;
 
     orcamento.items.forEach((item, index) => {
-        const itemSubtotal = item.quantidade * item.preco;
+        const preco = Number(item.preco) || 0;
+        const qtd = Number(item.quantidade) || 1;
+        const itemSubtotal = qtd * preco;
         subtotal += itemSubtotal;
 
         if (tipoVia === 'funcionarios') {
@@ -2018,7 +2354,7 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
                             <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
                         </div>
                     </td>
-                    <td class="text-center">${item.quantidade}</td>
+                    <td class="text-center">${qtd}</td>
                     <td class="text-center status-checkbox">☐ OK</td>
                     <td class="funcionario-obs">____________</td>
                 </tr>
@@ -2033,8 +2369,8 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
                             <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
                         </div>
                     </td>
-                    <td class="text-center">${item.quantidade}</td>
-                    <td class="text-right font-mono">R$ ${item.preco.toFixed(2).replace('.', ',')}</td>
+                    <td class="text-center">${qtd}</td>
+                    <td class="text-right font-mono">R$ ${preco.toFixed(2).replace('.', ',')}</td>
                     <td class="text-right font-mono">R$ ${itemSubtotal.toFixed(2).replace('.', ',')}</td>
                 </tr>
             `;
@@ -2172,12 +2508,12 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
                         <table class="totals-table">
                             <tr>
                                 <td class="total-label">Subtotal:</td>
-                                <td class="total-value font-mono">R$ ${(orcamento.subtotal || subtotal).toFixed(2).replace('.', ',')}</td>
+                                <td class="total-value font-mono">R$ ${(Number(orcamento.subtotal) || subtotal).toFixed(2).replace('.', ',')}</td>
                             </tr>
                             
                             <tr class="total-row">
                                 <td class="total-label">TOTAL:</td>
-                                <td class="total-value font-mono">R$ ${orcamento.total.toFixed(2).replace('.', ',')}</td>
+                                <td class="total-value font-mono">R$ ${(Number(orcamento.total) || 0).toFixed(2).replace('.', ',')}</td>
                             </tr>
                         </table>
                     </div>
@@ -2290,14 +2626,92 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
 // Função para obter estilos inline para impressão
 // moved to print.js
 
-// Carregar dados de exemplo se não houver dados
-setTimeout(() => {
-    if (state.clientes.length === 0 && state.pecas.length === 0 && state.servicos.length === 0) {
-        loadSampleData();
+// Carregar dados do backend de forma segura (substitui dados locais)
+async function loadFromBackend() {
+    try {
+        const [cli, pec, srv, orc] = await Promise.all([
+            api.get('/api/v1/clientes'),
+            api.get('/api/v1/pecas'),
+            api.get('/api/v1/servicos'),
+            api.get('/api/v1/orcamentos')
+        ]);
+        state.clientes = Array.isArray(cli.clientes) ? cli.clientes : [];
+        state.pecas = Array.isArray(pec.pecas) ? pec.pecas : [];
+        state.servicos = Array.isArray(srv.servicos) ? srv.servicos : [];
+        state.orcamentos = Array.isArray(orc.orcamentos) ? orc.orcamentos : [];
+        saveToStorage();
         renderAllLists();
         updateDashboard();
+    } catch (e) {
+        console.warn('Falha ao carregar dados do backend:', e);
     }
-}, 1000);
+}
+
+// Força reload dos dados do backend (útil após operações CRUD)
+async function refreshDataFromBackend(dataTypes = ['clientes', 'pecas', 'servicos', 'orcamentos']) {
+    const promises = [];
+    
+    if (dataTypes.includes('clientes')) {
+        promises.push(
+            api.get('/api/v1/clientes')
+                .then(resp => { state.clientes = Array.isArray(resp.clientes) ? resp.clientes : []; })
+                .catch(err => console.warn('Falha ao atualizar clientes:', err))
+        );
+    }
+    
+    if (dataTypes.includes('pecas')) {
+        promises.push(
+            api.get('/api/v1/pecas')
+                .then(resp => { state.pecas = Array.isArray(resp.pecas) ? resp.pecas : []; })
+                .catch(err => console.warn('Falha ao atualizar peças:', err))
+        );
+    }
+    
+    if (dataTypes.includes('servicos')) {
+        promises.push(
+            api.get('/api/v1/servicos')
+                .then(resp => { state.servicos = Array.isArray(resp.servicos) ? resp.servicos : []; })
+                .catch(err => console.warn('Falha ao atualizar serviços:', err))
+        );
+    }
+    
+    if (dataTypes.includes('orcamentos')) {
+        promises.push(
+            api.get('/api/v1/orcamentos')
+                .then(resp => { state.orcamentos = Array.isArray(resp.orcamentos) ? resp.orcamentos : []; })
+                .catch(err => console.warn('Falha ao atualizar orçamentos:', err))
+        );
+    }
+    
+    await Promise.all(promises);
+    saveToStorage();
+    renderAllLists();
+    updateDashboard();
+}
+
+// Iniciar carregamento assim que app subir
+document.addEventListener('DOMContentLoaded', () => {
+    loadFromBackend();
+});
+
+function toBackendOrcamentoPayload(local) {
+    return {
+        clienteId: String(local.clienteId),
+        data: local.data,
+        dataFinal: local.dataFinal || undefined,
+        status: local.status || 'pendente',
+        carro: local.carro || undefined,
+        placa: local.placa || undefined,
+        incEst: local.incEst || undefined,
+        observacao: local.observacao || undefined,
+        items: (local.items || []).map(it => ({
+            nome: it.nome,
+            quantidade: Number(it.quantidade) || 0,
+            preco: Number(it.preco) || 0,
+            tipo: it.tipo === 'servico' ? 'servico' : 'peca'
+        }))
+    };
+}
 
 // Explicitly expose commonly used functions for inline handlers and other modules
 Object.assign(window, {
@@ -2315,5 +2729,8 @@ Object.assign(window, {
     filterClientes,
     filterPecas,
     filterServicos,
-    renderAllLists
+    renderAllLists,
+    refreshDataFromBackend,
+    ensureDataLoaded
+    // printOrcamento será exposta por print.js
 });

@@ -32,10 +32,10 @@ window.filterPecas = window.filterPecas || function(){};
 				<td data-label="Descrição">${peca.descricao || '-'}</td>
 				<td data-label="Ações">
 					<div class="action-buttons">
-						<button class="action-btn edit" onclick="editPeca(${peca.id})" title="Editar">
+						<button class="action-btn edit" onclick="editPeca('${peca.id}')" title="Editar">
 							<i class="fas fa-edit"></i>
 						</button>
-						<button class="action-btn delete" onclick="deletePeca(${peca.id})" title="Excluir">
+						<button class="action-btn delete" onclick="deletePeca('${peca.id}')" title="Excluir">
 							<i class="fas fa-trash"></i>
 						</button>
 					</div>
@@ -57,7 +57,7 @@ window.filterPecas = window.filterPecas || function(){};
 
 	function editPecaImpl(id){
 		if (!hasState()) return;
-		const peca = state.pecas.find(p => p.id === id);
+		const peca = state.pecas.find(p => String(p.id) === String(id));
 		if (!peca) return;
 		state.currentEditId = id;
 		const form = document.getElementById('peca-form');
@@ -69,14 +69,18 @@ window.filterPecas = window.filterPecas || function(){};
 		if (typeof openModal === 'function') openModal('peca-modal');
 	}
 
-	function deletePecaImpl(id){
+	async function deletePecaImpl(id){
 		if (!hasState()) return;
-		showConfirm('Tem certeza que deseja excluir esta peça?', { title: 'Excluir peça' }).then((ok) => {
-			if (!ok) return;
-			state.pecas = state.pecas.filter(p => p.id !== id);
+		const ok = await showConfirm('Tem certeza que deseja excluir esta peça?', { title: 'Excluir peça' });
+		if (!ok) return;
+		try {
+			await api.del(`/api/v1/pecas/${id}`);
+			state.pecas = state.pecas.filter(p => String(p.id) !== String(id));
 			if (typeof saveToStorage === 'function') saveToStorage();
 			renderPecasImpl();
-		});
+		} catch (e) {
+			showAlert('Não foi possível excluir no servidor.', { title: 'Erro' });
+		}
 	}
 
 	if (window.renderPecas === Function.prototype || window.renderPecas.toString() === (function(){}).toString()) window.renderPecas = renderPecasImpl;

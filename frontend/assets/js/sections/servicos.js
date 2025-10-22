@@ -32,10 +32,10 @@ window.filterServicos = window.filterServicos || function(){};
 				<td data-label="Descrição">${servico.descricao || '-'}</td>
 				<td data-label="Ações">
 					<div class="action-buttons">
-						<button class="action-btn edit" onclick="editServico(${servico.id})" title="Editar">
+						<button class="action-btn edit" onclick="editServico('${servico.id}')" title="Editar">
 							<i class="fas fa-edit"></i>
 						</button>
-						<button class="action-btn delete" onclick="deleteServico(${servico.id})" title="Excluir">
+						<button class="action-btn delete" onclick="deleteServico('${servico.id}')" title="Excluir">
 							<i class="fas fa-trash"></i>
 						</button>
 					</div>
@@ -57,7 +57,7 @@ window.filterServicos = window.filterServicos || function(){};
 
 	function editServicoImpl(id){
 		if (!hasState()) return;
-		const servico = state.servicos.find(s => s.id === id);
+		const servico = state.servicos.find(s => String(s.id) === String(id));
 		if (!servico) return;
 		state.currentEditId = id;
 		const form = document.getElementById('servico-form');
@@ -69,14 +69,18 @@ window.filterServicos = window.filterServicos || function(){};
 		if (typeof openModal === 'function') openModal('servico-modal');
 	}
 
-	function deleteServicoImpl(id){
+	async function deleteServicoImpl(id){
 		if (!hasState()) return;
-		showConfirm('Tem certeza que deseja excluir este serviço?', { title: 'Excluir serviço' }).then((ok) => {
-			if (!ok) return;
-			state.servicos = state.servicos.filter(s => s.id !== id);
+		const ok = await showConfirm('Tem certeza que deseja excluir este serviço?', { title: 'Excluir serviço' });
+		if (!ok) return;
+		try {
+			await api.del(`/api/v1/servicos/${id}`);
+			state.servicos = state.servicos.filter(s => String(s.id) !== String(id));
 			if (typeof saveToStorage === 'function') saveToStorage();
 			renderServicosImpl();
-		});
+		} catch (e) {
+			showAlert('Não foi possível excluir no servidor.', { title: 'Erro' });
+		}
 	}
 
 	if (window.renderServicos === Function.prototype || window.renderServicos.toString() === (function(){}).toString()) window.renderServicos = renderServicosImpl;

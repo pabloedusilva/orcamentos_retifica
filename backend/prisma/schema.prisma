@@ -1,0 +1,175 @@
+// Prisma schema SIMPLIFICADO para Sistema de Orçamentos Retífica
+// Database: MySQL (Railway or any MySQL)
+// Versão: 3.0 - Simplificado e Essencial
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================
+// USUÁRIOS
+// ================================
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @db.VarChar(255)
+  role         String   @default("admin") @db.VarChar(20)
+  // Failed login tracking for per-account lockout
+  failedLoginAttempts Int      @default(0)
+  lockUntil           DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("users")
+}
+
+// ================================
+// CONFIGURAÇÕES DO SISTEMA
+// ================================
+
+model Configuracoes {
+  id            String   @id @default(cuid())
+  nome          String?  @db.VarChar(200)
+  endereco      String?  @db.VarChar(300)
+  telefone      String?  @db.VarChar(20)
+  email         String?  @db.VarChar(100)
+  cnpj          String?  @db.VarChar(20)
+  cep           String?  @db.VarChar(10)
+  logoDataUrl   String?  @db.LongText
+  logoPreset    String?  @db.VarChar(10)
+  selectedLogo  String?  @db.VarChar(255)
+  uploadedLogos String?  @db.LongText // JSON array de DataURLs
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("configuracoes")
+}
+
+// ================================
+// CLIENTES
+// ================================
+
+model Cliente {
+  id        String    @id @default(cuid())
+  nome      String    @db.VarChar(200)
+  email     String?   @db.VarChar(100)
+  telefone  String?   @db.VarChar(20)
+  cidade    String?   @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relacionamentos
+  orcamentos Orcamento[]
+  
+  @@index([nome])
+  @@map("clientes")
+}
+
+// ================================
+// PEÇAS (SIMPLIFICADO)
+// ================================
+
+model Peca {
+  id        String   @id @default(cuid())
+  nome      String   @db.VarChar(200)
+  descricao String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([nome])
+  @@map("pecas")
+}
+
+// ================================
+// SERVIÇOS (SIMPLIFICADO)
+// ================================
+
+model Servico {
+  id        String   @id @default(cuid())
+  nome      String   @db.VarChar(200)
+  descricao String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([nome])
+  @@map("servicos")
+}
+
+// ================================
+// ORÇAMENTOS (SIMPLIFICADO)
+// ================================
+
+model Orcamento {
+  id        String          @id @default(cuid())
+  clienteId String
+  data      DateTime        @default(now())
+  dataFinal DateTime?
+  status    String          @default("pendente") @db.VarChar(20)
+  total     Decimal         @default(0) @db.Decimal(10, 2)
+  carro     String?         @db.VarChar(200)
+  placa     String?         @db.VarChar(10)
+  incEst    String?         @db.VarChar(50)
+  observacao String?        @db.Text
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  
+  // Relacionamentos
+  cliente   Cliente         @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  items     OrcamentoItem[]
+  
+  @@index([clienteId])
+  @@index([status])
+  @@index([data])
+  @@map("orcamentos")
+}
+
+// ================================
+// ITENS DO ORÇAMENTO (SIMPLIFICADO)
+// ================================
+
+model OrcamentoItem {
+  id          String    @id @default(cuid())
+  orcamentoId String
+  nome        String    @db.VarChar(200)
+  quantidade  Int
+  preco       Decimal   @db.Decimal(10, 2)
+  tipo        String    @db.VarChar(20) // 'peca' | 'servico'
+  
+  // Relacionamentos
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  
+  @@index([orcamentoId])
+  @@map("orcamento_items")
+}
+
+// ================================
+// IMPRESSORAS (Rede/IPP/RAW9100)
+// ================================
+
+enum PrinterProtocol {
+  ipp
+  raw9100
+}
+
+model Printer {
+  id          String          @id @default(cuid())
+  name        String          @db.VarChar(100)
+  host        String          @db.VarChar(200)
+  protocol    PrinterProtocol
+  port        Int
+  path        String?         @db.VarChar(200) // IPP path, e.g., /ipp/print
+  isConnected Boolean         @default(false)
+  lastUsedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("printers")
+  @@index([host])
+  @@index([isConnected])
+}

@@ -143,7 +143,10 @@
     let itemsHtml = '';
     let subtotal = 0;
     orcamento.items.forEach(item => {
-      const itemSubtotal = item.quantidade * item.preco; subtotal += itemSubtotal;
+      const preco = Number(item.preco) || 0;
+      const qtd = Number(item.quantidade) || 1;
+      const itemSubtotal = qtd * preco;
+      subtotal += itemSubtotal;
       if (tipoVia === 'funcionarios') {
         itemsHtml += `
           <tr>
@@ -153,7 +156,7 @@
                 <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
               </div>
             </td>
-            <td class="text-center">${item.quantidade}</td>
+            <td class="text-center">${qtd}</td>
             <td class="text-center status-checkbox">☐ OK</td>
             <td class="funcionario-obs">____________</td>
           </tr>`;
@@ -166,8 +169,8 @@
                 <span class="item-tipo tipo-${item.tipo}">${item.tipo.toUpperCase()}</span>
               </div>
             </td>
-            <td class="text-center">${item.quantidade}</td>
-            <td class="text-right font-mono">R$ ${item.preco.toFixed(2).replace('.', ',')}</td>
+            <td class="text-center">${qtd}</td>
+            <td class="text-right font-mono">R$ ${preco.toFixed(2).replace('.', ',')}</td>
             <td class="text-right font-mono">R$ ${itemSubtotal.toFixed(2).replace('.', ',')}</td>
           </tr>`;
       }
@@ -228,8 +231,8 @@
           ${showValues ? `
           <div class="totals-section"><div class="totals-card">
             <table class="totals-table">
-              <tr><td class="total-label">Subtotal:</td><td class="total-value font-mono">R$ ${(orcamento.subtotal || subtotal).toFixed(2).replace('.', ',')}</td></tr>
-              <tr class="total-row"><td class="total-label">TOTAL:</td><td class="total-value font-mono">R$ ${orcamento.total.toFixed(2).replace('.', ',')}</td></tr>
+              <tr><td class="total-label">Subtotal:</td><td class="total-value font-mono">R$ ${(Number(orcamento.subtotal) || subtotal).toFixed(2).replace('.', ',')}</td></tr>
+              <tr class="total-row"><td class="total-label">TOTAL:</td><td class="total-value font-mono">R$ ${(Number(orcamento.total) || 0).toFixed(2).replace('.', ',')}</td></tr>
             </table>
           </div></div>` : `
           <div class="funcionarios-notes"><h4>Anotações dos Serviços:</h4><div class="notes-lines">
@@ -288,8 +291,8 @@
   }
 
   function buildOrcamentoText(orcamento) {
-    const S = getAppState();
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const S = getAppState();
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const validadeIso = orcamento.dataFinal || (()=>{ const d = new Date(orcamento.data + 'T00:00:00'); d.setFullYear(d.getFullYear()+1); return d.toISOString().split('T')[0]; })();
     const linhas = [];
     linhas.push(`Orçamento #${orcamento.id}`);
@@ -299,20 +302,23 @@
     linhas.push('');
     linhas.push('Itens:');
     orcamento.items.forEach(i => {
-      const sub = (i.quantidade * i.preco).toFixed(2).replace('.', ',');
-      linhas.push(`- ${i.nome} | Qtd: ${i.quantidade} | Unit: R$ ${i.preco.toFixed(2).replace('.', ',')} | Sub: R$ ${sub}`);
+      const preco = Number(i.preco) || 0;
+      const qtd = Number(i.quantidade) || 1;
+      const sub = (qtd * preco).toFixed(2).replace('.', ',');
+      linhas.push(`- ${i.nome} | Qtd: ${qtd} | Unit: R$ ${preco.toFixed(2).replace('.', ',')} | Sub: R$ ${sub}`);
     });
     linhas.push('');
     if (orcamento.observacao) { linhas.push('Observação:'); linhas.push(orcamento.observacao); linhas.push(''); }
-    linhas.push(`Total: R$ ${orcamento.total.toFixed(2).replace('.', ',')}`);
+    const total = Number(orcamento.total) || 0;
+    linhas.push(`Total: R$ ${total.toFixed(2).replace('.', ',')}`);
     return linhas.join('\n');
   }
 
   function printOrcamento(id) {
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(id));
-  if (!orcamento) { G.showAlert ? G.showAlert('Orçamento não encontrado', { title: 'Atenção' }) : alert('Orçamento não encontrado'); return; }
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const previewHtml = generateOrcamentoPreview(orcamento, cliente);
     document.getElementById('orcamento-preview-content').innerHTML = previewHtml;
     G.openModal && G.openModal('print-preview-modal');
@@ -322,7 +328,7 @@
     const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const viaHtml = generateOrcamentoPreview(orcamento, cliente, tipoVia);
     document.getElementById('orcamento-preview-content').innerHTML = viaHtml;
     document.querySelectorAll('.btn-via').forEach(btn => btn.classList.remove('active'));
@@ -334,7 +340,7 @@
     const id = getPreviewOrcamentoId(); if (!id) return;
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(id)); if (!orcamento) return;
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const subject = encodeURIComponent(`Orçamento #${orcamento.id} - Retífica`);
     const body = encodeURIComponent(buildOrcamentoText(orcamento));
     const to = cliente?.email ? encodeURIComponent(cliente.email) : '';
@@ -345,7 +351,7 @@
     const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const viaType = getCurrentViaType();
     await preloadCompanyLogo();
     const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
@@ -383,7 +389,7 @@
       const message = `Olá ${cliente ? cliente.nome : 'Cliente'}! Segue o orçamento #${id} (Via ${viaNames[viaType]}). Você pode visualizar acessando: ${serverUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
-  if (G.showAlert) G.showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' }); else alert('Erro ao compartilhar no WhatsApp. Tente novamente.');
+  showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' });
       if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv);
     }
   }
@@ -407,7 +413,25 @@
       const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
       const S = getAppState();
       const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-      const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+      // Prefer server-side PDF if API is available
+      try {
+        if (window.api && api.API_BASE) {
+          const token = api.getToken();
+          const url = `${api.API_BASE}/api/v1/orcamentos/${orcamento.id}/pdf`;
+          const res = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+          if (res.ok) {
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            const fileUrl = URL.createObjectURL(blob);
+            a.href = fileUrl;
+            a.download = `orcamento-${(cliente?cliente.nome:'cliente').replace(/[^a-zA-Z0-9]/g,'_')}-${orcamento.id}.pdf`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(fileUrl);
+            return; // done
+          }
+        }
+      } catch (e) { /* fallback to client-side */ }
       const todasVias = `${generateOrcamentoPreview(orcamento, cliente, 'vendedor')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'cliente')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'funcionarios')}`;
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `<div style="width:210mm;background:white;font-family:Arial,sans-serif;font-size:11px;line-height:1.3;">${todasVias}</div>`;
@@ -423,7 +447,7 @@
       const id = getPreviewOrcamentoId() || 'orcamento'; const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
       pdf.save(`orcamento-${clienteNome}-${id}-3vias.pdf`);
     } catch (e) {
-  if (G.showAlert) G.showAlert('Erro ao gerar impressão. Tente novamente.', { title: 'Erro' }); else alert('Erro ao gerar impressão. Tente novamente.');
+  showAlert('Erro ao gerar impressão. Tente novamente.', { title: 'Erro' });
     }
   }
 
@@ -1169,12 +1193,13 @@
   function printDocument() {
     const device = detectDevice();
     const orcamentoId = getPreviewOrcamentoId();
-  if (!orcamentoId) { if (G.showAlert) G.showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); else alert('Erro: Não foi possível identificar o orçamento para impressão'); return; }
+  if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
-  if (!orcamento) { if (G.showAlert) G.showAlert('Orçamento não encontrado', { title: 'Atenção' }); else alert('Orçamento não encontrado'); return; }
-    if (device.isTablet || device.isMobile || device.isSamsung) { showPrintOptions(); return; }
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
+    
+    // Usar o mesmo fluxo de impressão para todos os dispositivos
+  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const todasVias = generateAllVias(orcamento, cliente);
     const win = window.open('', '_blank');
     const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title></title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"><style>${getInlineStyles()}</style></head><body>${todasVias}</body></html>`;
@@ -1212,4 +1237,9 @@
   const api = { getPreviewOrcamentoId, getCurrentViaType, convertLocalImageToBase64Safe, replaceImageWithPlaceholder, preloadCompanyLogo, showImageFallbackNotification, generateOrcamentoPreview, generateAllVias, detectDevice, preloadImagesInElement, buildOrcamentoText, printOrcamento, switchViaPreview, sendOrcamentoEmailFromPreview, shareOrcamentoWhatsApp, uploadPdfToServer, printViaPDF, getMobilePrintStyles, getInlineStyles, printDocument, showPrintOptions, tryDirectPrint };
   G.Print = api;
   Object.assign(G, api);
+  
+  // Garantir que printOrcamento está disponível globalmente para inline handlers
+  if (!G.printOrcamento) {
+    G.printOrcamento = printOrcamento;
+  }
 })(window);

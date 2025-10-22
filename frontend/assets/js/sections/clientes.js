@@ -13,10 +13,17 @@ window.deleteCliente = window.deleteCliente || function(){};
 	// Bind only if available globals/state exist
 	function hasState(){ return typeof state !== 'undefined' && state && Array.isArray(state.clientes); }
 
-	function renderClientesImpl(){
+	async function renderClientesImpl(){
 		if (!hasState()) return;
 		const container = document.getElementById('clientes-list');
 		if (!container) return;
+		if (state.clientes.length === 0 && window.api) {
+			try {
+				const resp = await api.get('/api/v1/clientes');
+				state.clientes = Array.isArray(resp.clientes) ? resp.clientes : [];
+				if (typeof saveToStorage === 'function') saveToStorage();
+			} catch {}
+		}
 		if (state.clientes.length === 0) {
 			container.innerHTML = `
 				<tr>
@@ -37,10 +44,10 @@ window.deleteCliente = window.deleteCliente || function(){};
 				<td data-label="Cidade">${cliente.cidade || '-'}</td>
 				<td data-label="Ações">
 					<div class="action-buttons">
-						<button class="action-btn edit" onclick="editCliente(${cliente.id})" title="Editar">
+						<button class="action-btn edit" onclick="editCliente('${cliente.id}')" title="Editar">
 							<i class="fas fa-edit"></i>
 						</button>
-						<button class="action-btn delete" onclick="deleteCliente(${cliente.id})" title="Excluir">
+						<button class="action-btn delete" onclick="deleteCliente('${cliente.id}')" title="Excluir">
 							<i class="fas fa-trash"></i>
 						</button>
 					</div>
@@ -62,7 +69,7 @@ window.deleteCliente = window.deleteCliente || function(){};
 
 	function editClienteImpl(id){
 		if (!hasState()) return;
-		const cliente = state.clientes.find(c => c.id === id);
+		const cliente = state.clientes.find(c => String(c.id) === String(id));
 		if (!cliente) return;
 		state.currentEditId = id;
 		const form = document.getElementById('cliente-form');
@@ -78,15 +85,19 @@ window.deleteCliente = window.deleteCliente || function(){};
 		if (typeof openModal === 'function') openModal('cliente-modal');
 	}
 
-	function deleteClienteImpl(id){
+	async function deleteClienteImpl(id){
 		if (!hasState()) return;
-		showConfirm('Tem certeza que deseja excluir este cliente?', { title: 'Excluir cliente' }).then((ok) => {
-			if (!ok) return;
-			state.clientes = state.clientes.filter(c => c.id !== id);
+		const ok = await showConfirm('Tem certeza que deseja excluir este cliente?', { title: 'Excluir cliente' });
+		if (!ok) return;
+		try {
+			await api.del(`/api/v1/clientes/${id}`);
+			state.clientes = state.clientes.filter(c => String(c.id) !== String(id));
 			if (typeof saveToStorage === 'function') saveToStorage();
 			renderClientesImpl();
 			if (typeof updateDashboard === 'function') updateDashboard();
-		});
+		} catch (e) {
+			showAlert('Não foi possível excluir no servidor.', { title: 'Erro' });
+		}
 	}
 
 	// Attach to window if not already provided

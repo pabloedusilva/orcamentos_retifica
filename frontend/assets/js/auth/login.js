@@ -109,31 +109,16 @@ class LoginManager {
 	}
 
 	async authenticateUser(credentials) {
-		// Simulate API call with realistic delay
-		return new Promise((resolve) => {
-			setTimeout(() => {
-				// Simple authentication logic (replace with real API call)
-				const validCredentials = [
-					{ username: 'admin', password: 'admin' },
-					{ username: 'usuario', password: '123456' },
-					{ username: 'retifica', password: 'retifica2025' }
-				];
-
-				const isValid = validCredentials.some(
-					cred => cred.username === credentials.username &&
-						   cred.password === credentials.password
-				);
-
-				resolve({
-					success: isValid,
-					user: isValid ? {
-						username: credentials.username,
-						name: credentials.username === 'admin' ? 'Administrador' : 'Usuário',
-						role: credentials.username === 'admin' ? 'admin' : 'user'
-					} : null
-				});
-			}, 1200); // Realistic loading time
-		});
+		try {
+			const resp = await api.post('/api/v1/auth/login', credentials);
+			if (resp && resp.token) {
+				api.setToken(resp.token);
+				return { success: true, user: resp.user };
+			}
+			return { success: false };
+		} catch (e) {
+			return { success: false };
+		}
 	}
 
 	async handleLogin(e) {
@@ -150,7 +135,7 @@ class LoginManager {
 			const result = await this.authenticateUser(credentials);
 
 			if (result.success) {
-				// Store user session
+				// Store user session and token
 				this.storeUserSession(result.user);
 
 				// Show success feedback briefly
@@ -159,9 +144,14 @@ class LoginManager {
 					<span>Sucesso!</span>
 				`;
 
-				// Redirect to dashboard (back to root index.html)
+				// Store username for immediate access
+				if (result.user && result.user.username) {
+					localStorage.setItem('currentUsername', result.user.username);
+				}
+
+				// Redirect to dashboard (clean URL)
 				setTimeout(() => {
-					window.location.href = '../index.html';
+					window.location.href = '/';
 				}, 800);
 			} else {
 				this.setLoading(false);
@@ -193,21 +183,7 @@ class LoginManager {
 	}
 
 	// Static method to check if user is authenticated (for use in dashboard)
-	static isAuthenticated() {
-		try {
-			const session = localStorage.getItem('userSession');
-			if (!session) return false;
-
-			const sessionData = JSON.parse(session);
-			const now = new Date();
-			const expires = new Date(sessionData.expires);
-
-			return now < expires;
-		} catch (error) {
-			console.warn('Session check failed:', error);
-			return false;
-		}
-	}
+	static isAuthenticated() { return api.isAuthed(); }
 
 	// Static method to get current user (for use in dashboard)
 	static getCurrentUser() {
@@ -225,15 +201,12 @@ class LoginManager {
 
 	// Static method to logout (for use in dashboard)
 	static logout() {
-		try {
-			localStorage.removeItem('userSession');
-			// Redireciona de volta para a página de login na pasta auth
-			window.location.href = '../auth/login.html';
-		} catch (error) {
-			console.warn('Logout failed:', error);
-			// Fallback: apenas redireciona
-			window.location.href = '../auth/login.html';
-		}
+		try { 
+			api.setToken(''); 
+			localStorage.removeItem('userSession'); 
+			localStorage.removeItem('currentUsername');
+		} catch {}
+		window.location.href = '/login';
 	}
 }
 
@@ -291,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	function initializeLogin() {
 		// Check if user is already authenticated
 		if (LoginManager.isAuthenticated()) {
-			window.location.href = '../index.html';
+			window.location.href = '/';
 			return;
 		}
 		new LoginManager();

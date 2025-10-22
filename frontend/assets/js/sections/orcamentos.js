@@ -29,16 +29,17 @@ window.filterOrcamentos = window.filterOrcamentos || function(){};
 			return;
 		}
 		const renderRow = (orcamento) => {
-			const cliente = state.clientes.find(c => c.id === orcamento.clienteId);
-			const clienteNome = cliente ? cliente.nome : 'Cliente não encontrado';
-			const telefoneRaw = (cliente?.telefone || '').replace(/\D/g,'');
+			const cliente = orcamento.cliente || state.clientes.find(c => String(c.id) === String(orcamento.clienteId)) || null;
+			const clienteNome = (cliente && cliente.nome) || 'Cliente não encontrado';
+			const telefoneRaw = ((cliente && cliente.telefone) ? cliente.telefone : '').replace(/\D/g,'');
 			const waLink = telefoneRaw ? `https://wa.me/${telefoneRaw}` : 'https://wa.me/';
+			const totalNum = Number(orcamento.total || 0);
 			return `
 				<tr>
 					<td data-label="ID">#${orcamento.id}</td>
 					<td data-label="Cliente">${clienteNome}</td>
 					<td data-label="Data">${formatDate(orcamento.data)}</td>
-					<td data-label="Valor">R$ ${orcamento.total.toFixed(2).replace('.', ',')}</td>
+					<td data-label="Valor">R$ ${totalNum.toFixed(2).replace('.', ',')}</td>
 					<td data-label="Status"><span class="status-badge status-${orcamento.status}">${orcamento.status}</span></td>
 					<td data-label="Ações">
 						<div class="action-buttons">

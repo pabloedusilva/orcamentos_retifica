@@ -39,6 +39,18 @@
     --primary-gradient: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-700) 100%);
 }
 
+/* Floating printer status badge */
+.printer-badge { background: #fff; border: 1px solid var(--border-color); border-radius: 20px; padding: 8px 12px; box-shadow: var(--shadow-md); z-index: 20000; position: fixed; right: 16px; bottom: 16px; pointer-events: auto; }
+.printer-badge .badge-text { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
+.printer-badge .badge-name { font-weight: 600; color: var(--gray-900); }
+.printer-badge .badge-host { color: var(--gray-600); font-weight: 500; }
+.printer-badge .sep { color: var(--gray-400); }
+.printer-badge.show { display: inline-flex !important; align-items: center; gap: 6px; }
+
+@media (min-width: 1025px) {
+    .printer-badge .badge-text { max-width: 320px; }
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -73,21 +85,113 @@ body {
     opacity: 0;
     pointer-events: none;
     transition: opacity .2s ease;
-    z-index: 1050;
+    z-index: 1090; /* Above header and footer (1050), below sidebar (1100) */
 }
 
-@media (max-width: 768px) {
-  .sidebar.open ~ .main-content .sidebar-overlay {
-      opacity: 1;
-      pointer-events: auto;
-  }
-    /* When sidebar is open, prevent background scrolling */
+/* Overlay e scroll lock apenas em dispositivos móveis */
+@media (max-width: 1024px) {
+    .sidebar.open ~ .main-content .sidebar-overlay {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
     body.sidebar-open {
-            overflow: hidden;
+        overflow: hidden;
     }
 }
 
-/* Sidebar */
+/* Desktop: sem overlay nem scroll lock */
+@media (min-width: 1025px) {
+    .sidebar-overlay {
+        display: none !important;
+    }
+}
+
+/* Menu toggle button - visível apenas em dispositivos móveis */
+.menu-toggle {
+    display: none; /* Escondido por padrão (desktop) */
+}
+
+/* Desktop: sidebar sempre aberta, sem overlay */
+@media (min-width: 1025px) {
+    .sidebar {
+        width: 260px;
+        background: var(--surface-color);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 1100;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        min-height: 100vh;
+        height: 100dvh;
+        transform: translateX(0); /* Sempre visível */
+        transition: none; /* Sem animação */
+    }
+    
+    .main-content {
+        margin-left: 260px; /* Empurra o conteúdo para direita */
+    }
+    
+    .sidebar-overlay {
+        display: none !important; /* Sem overlay no desktop */
+    }
+}
+
+/* Tablets e Mobile: sidebar colapsável */
+@media (max-width: 1024px) {
+    .menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: var(--surface-color);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: var(--transition);
+        margin-right: 8px;
+    }
+
+    .menu-toggle:hover { 
+        background: var(--gray-100); 
+    }
+    
+    .sidebar {
+        width: 260px;
+        background: var(--surface-color);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 1100;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        min-height: 100vh;
+        height: 100dvh;
+        transform: translateX(-100%); /* Inicia fechada */
+        transition: transform 0.3s ease;
+    }
+    
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0; /* Ocupa tela toda */
+    }
+}
+
+/* Sidebar base styles (comum para todos) */
 .sidebar {
     width: 260px;
     background: var(--surface-color);
@@ -101,7 +205,6 @@ body {
     z-index: 1100;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    /* Robust height across browsers */
     min-height: 100vh;
     height: 100dvh;
 }
@@ -130,6 +233,11 @@ body {
     padding: 16px 20px;
     border-top: 1px solid var(--border-color);
 }
+    /* Sidebar printer connection status (below the clock) */
+    .printer-sidebar-status { display:flex; align-items:center; gap:6px; margin: 8px 0 0 0; padding: 0; color: var(--gray-700); font-size: 12px; }
+    .printer-sidebar-status .ps-dot { width: 8px; height: 8px; border-radius: 50%; background: #95a5a6; flex-shrink: 0; }
+    .printer-sidebar-status .ps-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+    @media (min-width: 1025px) { .printer-sidebar-status .ps-text { max-width: 160px; } }
 
 .sidebar-footer .btn {
     width: 100%;
@@ -163,15 +271,13 @@ body {
     text-align: center;
 }
 
-/* Main Content */
+/* Main Content - layout adaptativo */
 .main-content {
     flex: 1;
-    margin-left: 260px;
     display: flex;
     flex-direction: column;
     position: relative;
     z-index: 0;
-    /* Allow children to define their own scroll areas */
     min-height: 0;
 }
 
@@ -191,7 +297,14 @@ body {
     background: var(--surface-color);
     border-bottom: 1px solid var(--border-color);
     position: relative;
-    z-index: 1200; /* Above sidebar overlay */
+    z-index: 10; /* Desktop: abaixo da sidebar */
+}
+
+/* Mobile: header abaixo do overlay */
+@media (max-width: 1024px) {
+    .header {
+        z-index: 1050;
+    }
 }
 
 .header-left {
@@ -262,6 +375,26 @@ body {
 .btn-sm {
     padding: 6px 12px;
     font-size: 12px;
+}
+
+/* Specific device action buttons */
+.btn-primary.device-connect {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    color: white;
+}
+
+.btn-primary.device-connect:hover {
+    filter: brightness(0.95);
+}
+
+.btn-secondary.device-disconnect {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+}
+
+.btn-secondary.device-disconnect:hover {
+    filter: brightness(0.95);
 }
 
 /* Estilo específico para o botão de sair */
@@ -1185,22 +1318,6 @@ body.modal-open { overflow: hidden; }
     .form-grid { grid-template-columns: 1fr; gap: 14px; }
     .settings-grid { grid-template-columns: 1fr; }
     .account-card { padding: 14px; }
-    .menu-toggle {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
-        border: 1px solid var(--border-color);
-        background: var(--surface-color);
-        color: var(--text-primary);
-        cursor: pointer;
-        transition: var(--transition);
-        margin-right: 8px;
-    }
-
-    .menu-toggle:hover { background: var(--gray-100); }
 
     .sidebar {
         transform: translateX(-100%);
@@ -2340,21 +2457,23 @@ body.modal-open { overflow: hidden; }
     background: var(--text-secondary);
 }
 
-/* Hamburger button (hidden on desktop) */
-@media (min-width: 769px) {
-    .menu-toggle { display: none; }
-}
-
 /* Global site footer (injected by footer.js) */
 .site-footer {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 1200;
+    z-index: 10; /* Desktop: abaixo da sidebar */
     width: 100%;
     background: #fff;
     border-top: 1px solid var(--border-color);
+}
+
+/* Mobile: footer abaixo do overlay */
+@media (max-width: 1024px) {
+    .site-footer {
+        z-index: 1050;
+    }
 }
 
 .footer-content {
@@ -2402,8 +2521,8 @@ body.modal-open { overflow: hidden; }
 /* Reserve space for fixed footer so content isn't hidden */
 .main-content > .section { padding-bottom: 96px; }
 
-/* On desktops, align footer to main content area (exclude sidebar width) */
-@media (min-width: 769px) {
+/* Desktop: footer alinhado com o conteúdo (excluindo largura da sidebar) */
+@media (min-width: 1025px) {
     .site-footer { left: 260px; width: calc(100% - 260px); }
 }
 
@@ -2577,20 +2696,64 @@ body.modal-open { overflow: hidden; }
         border-radius: 0 !important;
     }
     
+    /* Ensure print header keeps controls in a single row. If there's not enough space,
+       allow the right-side actions to scroll horizontally instead of wrapping. */
     .print-header {
-        flex-wrap: wrap !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
         gap: 8px !important;
+        flex-wrap: nowrap !important;
     }
-    
+
+    .print-center { flex: 1 1 auto; display:flex; justify-content:center; }
+
+    .via-selector {
+        display: inline-flex;
+        gap: 6px;
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 2px 4px;
+    }
+
+    /* Layout em grid: duas colunas para os botões à esquerda e uma coluna fixa para o botão X à direita.
+       Isso garante que, ao quebrar, os botões se organizem 2 por linha e o X permaneça alinhado e não quebre. */
     .print-actions {
-        flex-wrap: wrap !important;
+        display: grid !important;
+        grid-template-columns: repeat(2, auto) auto;
         gap: 8px !important;
+        align-items: center !important;
+        padding-bottom: 4px;
+        align-content: center;
     }
-    
+
+    /* O botão de fechar (X) fica na coluna 3 e ocupa as duas linhas, evitando que ele quebre linha. */
+    .print-actions .icon-btn-close {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+        justify-self: end;
+        align-self: center;
+        margin-left: 8px;
+    }
+
+    /* Garante que os demais botões se ajustem à grade (dois por linha) */
+    .print-actions .icon-btn:not(.icon-btn-close) {
+        min-width: 0;
+        width: auto;
+    }
+
+    /* Reduce icon button padding on very small screens to help them fit */
     .icon-btn {
-        padding: 12px !important;
-        font-size: 16px !important;
+        padding: 8px !important;
+        font-size: 14px !important;
+        min-width: 32px !important;
+        height: 32px !important;
     }
+
+    /* Slight spacing for the close button so it doesn't stick to others */
+    .print-actions .icon-btn-close { margin-left: 8px; }
     
     .orcamento-preview {
         overflow: auto !important;

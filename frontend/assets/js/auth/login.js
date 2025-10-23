@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Intro overlay flow
 	const overlay = document.getElementById('intro-overlay');
 	const video = document.getElementById('intro-video');
-	const startBtn = document.getElementById('start-intro');
+	const startBtn = null; // botão removido por pedido do usuário (sem fallback manual)
 	const loginContainer = document.querySelector('.login-container');
 
 	// Prevent multiple initializations
@@ -260,9 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			video.muted = true;
 			await video.play();
 		} catch (e) {
-			// Autoplay bloqueado: exibir botão para iniciar (não é pular, é iniciar)
+			// Autoplay bloqueado: pular imediatamente para o formulário (sem botão)
 			console.warn('Autoplay blocked:', e);
-			if (startBtn) startBtn.style.display = 'block';
+			revealLogin();
+			return;
 		}
 
 		// Quando o vídeo terminar, mostra o login (sem opção de pular antes)
@@ -272,19 +273,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		};
 		video.addEventListener('ended', onEnded);
 
-		// Se houver erro no vídeo, ainda assim precisamos permitir continuar (não é pular, é falha)
+		// Se houver erro no vídeo, continuar para o formulário
 		video.addEventListener('error', () => {
 			console.warn('Video error');
 			revealLogin();
 		});
 
-		// Se autoplay foi bloqueado, iniciar via clique
-		if (startBtn) {
-			startBtn.addEventListener('click', async () => {
-				startBtn.style.display = 'none';
-				try { await video.play(); } catch(err) { console.warn('Video start failed:', err); revealLogin(); }
-			});
-		}
 	}
 
 	async function hasCookieSession() {

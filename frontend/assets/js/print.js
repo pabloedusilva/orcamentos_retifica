@@ -1193,33 +1193,45 @@
   function printDocument() {
     const device = detectDevice();
     const orcamentoId = getPreviewOrcamentoId();
-  if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
+    if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
-  if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
-    
-    // Usar o mesmo fluxo de impressão para todos os dispositivos
-  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
+
+    // Em ambientes mobile/tablet (Android/iOS), usar PDF para máxima compatibilidade
+    if (device.isMobile || device.isTablet || device.isAndroid || device.isIOS) {
+      printViaPDF().catch(() => tryDirectPrint());
+      return;
+    }
+
+    // Desktop: abrir janela e imprimir quando imagens estiverem carregadas
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const todasVias = generateAllVias(orcamento, cliente);
     const win = window.open('', '_blank');
     const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title></title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"><style>${getInlineStyles()}</style></head><body>${todasVias}</body></html>`;
     win.document.write(content); win.document.close();
-    win.onload = function(){ try { win.document.title = ' '; } catch{}; try { const href = window.location?.href || ''; const newUrl = href ? `${href.split('#')[0]}#impressao` : '#impressao'; win.history.replaceState(null,'',newUrl);} catch{}; win.focus(); win.print(); win.close(); };
+    win.onload = function(){
+      try { win.document.title = ' '; } catch{}
+      try {
+        const imgs = win.document.images || [];
+        const promises = Array.from(imgs).map(img => new Promise(r => { if (img.complete) r(); else { img.onload = () => r(); img.onerror = () => r(); }}));
+        Promise.all(promises).then(() => {
+          try { const href = window.location?.href || ''; const newUrl = href ? `${href.split('#')[0]}#impressao` : '#impressao'; win.history.replaceState(null,'',newUrl);} catch{}
+          win.focus(); win.print();
+          setTimeout(()=>{ try { win.close(); } catch{} }, 500);
+        });
+      } catch(e) { try { win.print(); } catch{} }
+    };
   }
 
   function showPrintOptions() {
+    // Escolha automática do método, sem perguntas ao usuário
     const d = detectDevice();
-    const deviceText = d.isTablet ? 'Tablet detectado' : (d.isMobile ? 'Dispositivo móvel detectado' : '');
-    const ask = async () => {
-      if (G.showConfirm) {
-        const ok = await G.showConfirm(`${deviceText ? deviceText + '\\n\\n' : ''}Baixar PDF (recomendado) em vez de imprimir direto?`, { title: 'Impressão', okText: 'Baixar PDF', cancelText: 'Impressão direta' });
-        if (ok) printViaPDF(); else tryDirectPrint();
-      } else {
-        const choice = prompt(`${deviceText ? deviceText + '\\n\\n' : ''}1. Baixar PDF (Recomendado)\\n2. Tentar impressão direta\\n\\nDigite 1 ou 2:`);
-        if (choice === '1') printViaPDF(); else if (choice === '2') tryDirectPrint(); else {}
-      }
-    };
-    ask();
+    if (d.isMobile || d.isTablet || d.isAndroid || d.isIOS) {
+      printViaPDF().catch(() => tryDirectPrint());
+    } else {
+      printDocument();
+    }
   }
 
   function tryDirectPrint() {
@@ -1228,9 +1240,35 @@
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
     const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
     const todasVias = generateAllVias(orcamento, cliente);
-    const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Impressão - Orçamento ${orcamento.id}</title><style>${getMobilePrintStyles()}</style></head><body onload="setTimeout(()=>{window.print();},1000);"><div class="print-instructions"><p>📋 Documento pronto para impressão</p><p>Use o menu do navegador para imprimir ou compartilhar</p><button onclick="window.print()" style="padding:10px 20px;font-size:16px;margin:10px;">🖨️ Imprimir</button></div>${todasVias}</body></html>`;
-    const blob = new Blob([content], { type: 'text/html' });
-    const url = URL.createObjectURL(blob); window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    // Usar iframe oculto para evitar bloqueio de popup em alguns dispositivos
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow || iframe.contentDocument;
+    const iw = iframe.contentWindow;
+    const idoc = iframe.contentDocument || doc.document;
+    idoc.open();
+    idoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Impressão - Orçamento ${orcamento.id}</title><style>${getMobilePrintStyles()}</style></head><body>${todasVias}</body></html>`);
+    idoc.close();
+    iframe.onload = function(){
+      try {
+        const imgs = idoc.images || [];
+        const promises = Array.from(imgs).map(img => new Promise(r => { if (img.complete) r(); else { img.onload = () => r(); img.onerror = () => r(); }}));
+        Promise.all(promises).then(() => {
+          iw.focus();
+          iw.print();
+          setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
+        });
+      } catch(e) {
+        try { iw.print(); } catch{}
+        setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
+      }
+    };
   }
 
   // Expose

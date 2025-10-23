@@ -5,12 +5,14 @@ class LoginManager {
 		this.usernameInput = document.getElementById('username');
 		this.passwordInput = document.getElementById('password');
 		this.passwordToggle = document.getElementById('passwordToggle');
+		this.rememberCheckbox = document.getElementById('rememberAccess');
 		this.loginBtn = document.getElementById('loginBtn');
 		this.btnText = this.loginBtn.querySelector('.btn-text');
 		this.btnLoading = this.loginBtn.querySelector('.btn-loading');
 		this.errorElement = document.getElementById('loginError');
 
 		this.initializeEventListeners();
+		this.loadRememberedCredentials();
 		this.focusUsername();
 	}
 
@@ -28,6 +30,18 @@ class LoginManager {
 		this.usernameInput.addEventListener('input', () => this.clearError());
 		this.passwordInput.addEventListener('input', () => this.clearError());
 
+		// Remember checkbox change: if desmarcar, limpar armazenado
+		if (this.rememberCheckbox) {
+			this.rememberCheckbox.addEventListener('change', () => {
+				if (!this.rememberCheckbox.checked) {
+					try {
+						localStorage.removeItem('rememberAccess');
+						localStorage.removeItem('rememberedCredentials');
+					} catch {}
+				}
+			});
+		}
+
 		// Enter key handling
 		this.passwordInput.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') {
@@ -35,6 +49,27 @@ class LoginManager {
 				this.handleLogin(e);
 			}
 		});
+	}
+
+	loadRememberedCredentials() {
+		try {
+			const remember = localStorage.getItem('rememberAccess') === '1';
+			if (!remember) return;
+			const raw = localStorage.getItem('rememberedCredentials');
+			if (!raw) return;
+			let data;
+			try {
+				data = JSON.parse(atob(raw));
+			} catch {
+				// fallback para JSON puro sem base64, se existir
+				try { data = JSON.parse(raw); } catch { data = null; }
+			}
+			if (data && typeof data.u === 'string' && typeof data.p === 'string') {
+				this.usernameInput.value = data.u;
+				this.passwordInput.value = data.p;
+				if (this.rememberCheckbox) this.rememberCheckbox.checked = true;
+			}
+		} catch {}
 	}
 
 	focusUsername() {
@@ -135,6 +170,18 @@ class LoginManager {
 			const result = await this.authenticateUser(credentials);
 
 			if (result.success) {
+				// Remember credentials if requested
+				try {
+					if (this.rememberCheckbox?.checked) {
+						localStorage.setItem('rememberAccess', '1');
+						const payload = { u: credentials.username, p: credentials.password };
+						localStorage.setItem('rememberedCredentials', btoa(JSON.stringify(payload)));
+					} else {
+						localStorage.removeItem('rememberAccess');
+						localStorage.removeItem('rememberedCredentials');
+					}
+				} catch {}
+
 				// Store user session and token
 				this.storeUserSession(result.user);
 

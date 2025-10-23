@@ -2718,42 +2718,39 @@ body.modal-open { overflow: hidden; }
         padding: 2px 4px;
     }
 
-    /* Layout em grid: duas colunas para os botões à esquerda e uma coluna fixa para o botão X à direita.
-       Isso garante que, ao quebrar, os botões se organizem 2 por linha e o X permaneça alinhado e não quebre. */
+    /* Em dispositivos: manter ações em uma única linha com rolagem horizontal e botão fechar sempre visível à direita */
     .print-actions {
-        display: grid !important;
-        grid-template-columns: repeat(2, auto) auto;
+        display: flex !important;
+        flex-wrap: nowrap !important;
         gap: 8px !important;
         align-items: center !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
         padding-bottom: 4px;
-        align-content: center;
     }
 
-    /* O botão de fechar (X) fica na coluna 3 e ocupa as duas linhas, evitando que ele quebre linha. */
-    .print-actions .icon-btn-close {
-        grid-column: 3;
-        grid-row: 1 / span 2;
-        justify-self: end;
-        align-self: center;
-        margin-left: 8px;
-    }
-
-    /* Garante que os demais botões se ajustem à grade (dois por linha) */
     .print-actions .icon-btn:not(.icon-btn-close) {
-        min-width: 0;
-        width: auto;
+        flex: 0 0 auto;
     }
 
-    /* Reduce icon button padding on very small screens to help them fit */
+    /* Botão fechar gruda à direita e permanece visível durante a rolagem */
+    .print-actions .icon-btn-close {
+        margin-left: auto;
+        position: sticky;
+        right: 0;
+        background: #fff;
+        flex: 0 0 auto;
+        z-index: 2;
+    }
+
+    /* Aumentar área de toque em telas pequenas */
     .icon-btn {
-        padding: 8px !important;
-        font-size: 14px !important;
-        min-width: 32px !important;
-        height: 32px !important;
+        padding: 10px !important;
+        font-size: 16px !important;
+        min-width: 40px !important;
+        height: 40px !important;
+        border-radius: 10px !important;
     }
-
-    /* Slight spacing for the close button so it doesn't stick to others */
-    .print-actions .icon-btn-close { margin-left: 8px; }
     
     .orcamento-preview {
         overflow: auto !important;

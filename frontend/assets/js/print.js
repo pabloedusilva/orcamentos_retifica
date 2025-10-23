@@ -1144,10 +1144,12 @@
       border-color: #ddd;
     }
 
-    /* Ajustes de impressão para múltiplas páginas */
+    /* Ajustes de impressão para múltiplas páginas e dispositivos
+       - Não forçar tamanho A4 para permitir que o dispositivo escolha
+       - Margens suaves que funcionam no Android/Chrome e iOS */
     @page {
-      margin: 1cm;
-      size: A4;
+      margin: 10mm;
+      size: auto;
     }
 
     /* Configurações globais para melhor renderização de imagens */
@@ -1191,47 +1193,57 @@
   }
 
   function printDocument() {
-    const device = detectDevice();
+    // Impressão nativa em todos os dispositivos via iframe oculto
     const orcamentoId = getPreviewOrcamentoId();
     if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
     if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
 
-    // Em ambientes mobile/tablet (Android/iOS), usar PDF para máxima compatibilidade
-    if (device.isMobile || device.isTablet || device.isAndroid || device.isIOS) {
-      printViaPDF().catch(() => tryDirectPrint());
-      return;
-    }
-
-    // Desktop: abrir janela e imprimir quando imagens estiverem carregadas
     const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const todasVias = generateAllVias(orcamento, cliente);
-    const win = window.open('', '_blank');
-    const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title></title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"><style>${getInlineStyles()}</style></head><body>${todasVias}</body></html>`;
-    win.document.write(content); win.document.close();
-    win.onload = function(){
-      try { win.document.title = ' '; } catch{}
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const iw = iframe.contentWindow;
+    const idoc = iframe.contentDocument || iw.document;
+    idoc.open();
+    idoc.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Impressão - Orçamento ${orcamento.id}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+      <style>${getInlineStyles()}</style>
+    </head><body>${todasVias}</body></html>`);
+    idoc.close();
+
+    iframe.onload = function(){
       try {
-        const imgs = win.document.images || [];
+        const imgs = idoc.images || [];
         const promises = Array.from(imgs).map(img => new Promise(r => { if (img.complete) r(); else { img.onload = () => r(); img.onerror = () => r(); }}));
         Promise.all(promises).then(() => {
-          try { const href = window.location?.href || ''; const newUrl = href ? `${href.split('#')[0]}#impressao` : '#impressao'; win.history.replaceState(null,'',newUrl);} catch{}
-          win.focus(); win.print();
-          setTimeout(()=>{ try { win.close(); } catch{} }, 500);
+          try { iw.focus(); } catch {}
+          try { iw.print(); } catch(e) { showAlert('Falha ao iniciar a impressão no dispositivo.', { title: 'Erro' }); }
+          setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
         });
-      } catch(e) { try { win.print(); } catch{} }
+      } catch(e) {
+        try { iw.print(); } catch{}
+        setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
+      }
     };
   }
 
   function showPrintOptions() {
-    // Escolha automática do método, sem perguntas ao usuário
-    const d = detectDevice();
-    if (d.isMobile || d.isTablet || d.isAndroid || d.isIOS) {
-      printViaPDF().catch(() => tryDirectPrint());
-    } else {
-      printDocument();
-    }
+    // Sempre usar impressão nativa do dispositivo
+    printDocument();
   }
 
   function tryDirectPrint() {

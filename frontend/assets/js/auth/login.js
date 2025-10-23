@@ -221,17 +221,36 @@ document.addEventListener('DOMContentLoaded', () => {
 	const startBtn = document.getElementById('start-intro');
 	const loginContainer = document.querySelector('.login-container');
 
+	// Prevent multiple initializations
+	let initialized = false;
+	let revealed = false;
+
+	function stopVideo() {
+		try {
+			if (video) {
+				video.pause();
+				video.currentTime = 0;
+				// Detach source to avoid browser auto-replay quirks
+				// Keep src so poster/controls remain if needed
+			}
+		} catch {}
+	}
+
 	function revealLogin() {
+		if (revealed) return;
+		revealed = true;
+		stopVideo();
 		if (overlay && !overlay.classList.contains('hidden')) {
 			overlay.classList.add('hidden');
 		}
 		loginContainer?.classList.add('reveal-login');
+		initializeLogin();
 	}
 
 	async function startIntro() {
 		// If intro elements are missing (fallback), just show login
 		if (!overlay || !video) {
-			initializeLogin();
+			revealLogin();
 			return;
 		}
 
@@ -245,10 +264,21 @@ document.addEventListener('DOMContentLoaded', () => {
 			if (startBtn) startBtn.style.display = 'block';
 		}
 
+		// Safety fallback: if nada acontecer em 6s, mostra login
+		const fallback = setTimeout(() => { revealLogin(); }, 6000);
+
 		// When video ends, reveal login
-		video.addEventListener('ended', () => {
+		const onEnded = () => {
+			clearTimeout(fallback);
 			revealLogin();
-			initializeLogin();
+			video.removeEventListener('ended', onEnded);
+		};
+		video.addEventListener('ended', onEnded);
+
+		// If video errors, fallback to login
+		video.addEventListener('error', () => {
+			clearTimeout(fallback);
+			revealLogin();
 		});
 
 		// Se autoplay bloqueado, usuário precisa iniciar o vídeo
@@ -259,18 +289,37 @@ document.addEventListener('DOMContentLoaded', () => {
 					await video.play();
 				} catch(err) {
 					console.warn('Video start failed:', err);
+					// Em falha, revela login direto
+					revealLogin();
 				}
 			});
 		}
 	}
 
-	function initializeLogin() {
-		// Check if user is already authenticated
-		if (LoginManager.isAuthenticated()) {
-			window.location.href = '/';
-			return;
+	async function hasCookieSession() {
+		// Check server-authenticated session using only cookies (no Authorization header)
+		try {
+			const apiBase = localStorage.getItem('apiBase') || window.location.origin;
+			const res = await fetch(apiBase + '/api/v1/auth/me', { method: 'GET', credentials: 'same-origin' });
+			return res.ok;
+		} catch (_) {
+			return false;
 		}
-		new LoginManager();
+	}
+
+	function initializeLogin() {
+		if (initialized) return;
+		initialized = true;
+		// Only redirect if we have a valid cookie-based session on the server
+		hasCookieSession().then((ok) => {
+			if (ok) {
+				window.location.href = '/';
+				return;
+			}
+			// Ensure any stale local token won't trigger client-side assumptions
+			try { api.setToken(''); } catch {}
+			new LoginManager();
+		});
 	}
 
 	startIntro();

@@ -7,6 +7,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const serveStatic = require('serve-static');
+const jwt = require('jsonwebtoken');
 
 const { router: api } = require('./routes');
 const { ensureUploadDirs } = require('./utils/paths');
@@ -196,19 +197,26 @@ app.use(express.static(frontendPath, {
 
 // Clean URL routing for frontend pages
 // Protect main app with server-side auth (cookie or header)
-app.get('/', auth(true), (req, res) => {
+app.get('/', auth(true, { mode: 'redirect' }), (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 app.get('/login', (req, res) => {
-  // If already authenticated, go to app
-  // auth(false) behavior inline: we won't block here, just check cookie/header manually
-  const header = req.headers.authorization || '';
-  const hasBearer = header.startsWith('Bearer ');
-  const hasCookie = (req.headers.cookie || '').includes('access_token=');
-  if (hasBearer || hasCookie) {
-    return res.redirect('/');
-  }
+  // If token is valid, redirect to app; else show login
+  try {
+    const header = req.headers.authorization || '';
+    let token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) {
+      const m = (req.headers.cookie || '').match(/(?:^|;\s*)access_token=([^;]+)/);
+      if (m) token = decodeURIComponent(m[1]);
+    }
+    if (token) {
+      const issuer = process.env.JWT_ISSUER || 'orcamentos-api';
+      const audience = process.env.JWT_AUDIENCE || 'web';
+      jwt.verify(token, process.env.JWT_SECRET, { issuer, audience });
+      return res.redirect('/');
+    }
+  } catch (_) {}
   res.sendFile(path.join(frontendPath, 'auth', 'login.html'));
 });
 
@@ -221,14 +229,22 @@ app.get('/auth*', (req, res) => {
 app.get('*', (req, res) => {
   // Only handle client-side routes (no API/file)
   if (!req.path.startsWith('/api/') && !req.path.includes('.')) {
-    // Require authentication to serve the SPA shell
-    const header = req.headers.authorization || '';
-    const hasBearer = header.startsWith('Bearer ');
-    const hasCookie = (req.headers.cookie || '').includes('access_token=');
-    if (!(hasBearer || hasCookie)) {
+    // Validate token; redirect if missing/invalid
+    try {
+      const header = req.headers.authorization || '';
+      let token = header.startsWith('Bearer ') ? header.slice(7) : null;
+      if (!token) {
+        const m = (req.headers.cookie || '').match(/(?:^|;\s*)access_token=([^;]+)/);
+        if (m) token = decodeURIComponent(m[1]);
+      }
+      if (!token) return res.redirect('/login');
+      const issuer = process.env.JWT_ISSUER || 'orcamentos-api';
+      const audience = process.env.JWT_AUDIENCE || 'web';
+      jwt.verify(token, process.env.JWT_SECRET, { issuer, audience });
+      return res.sendFile(path.join(frontendPath, 'index.html'));
+    } catch (_) {
       return res.redirect('/login');
     }
-    return res.sendFile(path.join(frontendPath, 'index.html'));
   }
   return res.status(404).json({ error: 'Not Found' });
 });

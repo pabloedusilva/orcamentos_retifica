@@ -22,10 +22,14 @@ function getTokenFromReq(req) {
   return null;
 }
 
-function auth(required = true) {
+function auth(required = true, options = {}) {
+  const mode = options.mode || 'json'; // 'json' | 'redirect'
   return (req, res, next) => {
     const token = getTokenFromReq(req);
-    if (!token) return required ? res.status(401).json({ error: 'Unauthorized' }) : next();
+    if (!token) {
+      if (!required) return next();
+      return mode === 'redirect' ? res.redirect('/login') : res.status(401).json({ error: 'Unauthorized' });
+    }
 
     try {
       const issuer = process.env.JWT_ISSUER || 'orcamentos-api';
@@ -34,7 +38,7 @@ function auth(required = true) {
       req.user = { id: payload.sub, role: payload.role };
       return next();
     } catch (e) {
-      return res.status(401).json({ error: 'Invalid token' });
+      return mode === 'redirect' ? res.redirect('/login') : res.status(401).json({ error: 'Invalid token' });
     }
   };
 }

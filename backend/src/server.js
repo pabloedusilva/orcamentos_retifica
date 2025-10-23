@@ -11,6 +11,7 @@ const serveStatic = require('serve-static');
 const { router: api } = require('./routes');
 const { ensureUploadDirs } = require('./utils/paths');
 const { errorHandler } = require('./middlewares/error');
+const { auth } = require('./middlewares/auth');
 
 const app = express();
 
@@ -87,10 +88,10 @@ if (!AUTH_RATE_DISABLED) {
 // ensures it runs before the nested router handles the request.
 app.use('/api/v1/auth/login', authLimiter);
 
-// General rate limit for all frontend routes (allow burst page reloads)
+// General rate limit for all frontend routes
 const frontendLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 300, // allow at least 15+ simultaneous reloads comfortably
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // 100 page loads per minute
   message: 'Too many requests, please slow down.',
   standardHeaders: true,
   legacyHeaders: false
@@ -194,11 +195,20 @@ app.use(express.static(frontendPath, {
 }));
 
 // Clean URL routing for frontend pages
-app.get('/', (req, res) => {
+// Protect main app with server-side auth (cookie or header)
+app.get('/', auth(true), (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 app.get('/login', (req, res) => {
+  // If already authenticated, go to app
+  // auth(false) behavior inline: we won't block here, just check cookie/header manually
+  const header = req.headers.authorization || '';
+  const hasBearer = header.startsWith('Bearer ');
+  const hasCookie = (req.headers.cookie || '').includes('access_token=');
+  if (hasBearer || hasCookie) {
+    return res.redirect('/');
+  }
   res.sendFile(path.join(frontendPath, 'auth', 'login.html'));
 });
 
@@ -209,12 +219,18 @@ app.get('/auth*', (req, res) => {
 
 // Handle client-side routing for SPA (redirect unknown routes to main app)
 app.get('*', (req, res) => {
-  // Only redirect if it's not an API call or file request
+  // Only handle client-side routes (no API/file)
   if (!req.path.startsWith('/api/') && !req.path.includes('.')) {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  } else {
-    res.status(404).json({ error: 'Not Found' });
+    // Require authentication to serve the SPA shell
+    const header = req.headers.authorization || '';
+    const hasBearer = header.startsWith('Bearer ');
+    const hasCookie = (req.headers.cookie || '').includes('access_token=');
+    if (!(hasBearer || hasCookie)) {
+      return res.redirect('/login');
+    }
+    return res.sendFile(path.join(frontendPath, 'index.html'));
   }
+  return res.status(404).json({ error: 'Not Found' });
 });
 
 // Error handler

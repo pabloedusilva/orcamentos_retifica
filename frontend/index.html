@@ -28,11 +28,8 @@
 </head>
 <body>
         <script>
-            // Early auth guard: if no token, redirect to login
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) { window.location.replace('/login'); }
-            } catch {}
+            // Server-side already protects this page; defer to robust /auth/me check below.
+            // Keep body hidden until validation finishes to avoid flashes.
         </script>
     <div class="app">
         <!-- Sidebar -->

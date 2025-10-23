@@ -51,6 +51,17 @@ async function login(req, res) {
   const now = Math.floor(Date.now() / 1000);
   const payload = { sub: user.id, role: user.role, iss: issuer, aud: audience, iat: now, nbf: now };
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  // Also set HttpOnly cookie for server-side protection of HTML routes
+  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+  const secureCookie = (process.env.NODE_ENV === 'production') || process.env.ENFORCE_HTTPS === 'true';
+  res.cookie('access_token', token, {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: twoDaysMs
+  });
+
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 }
 
@@ -61,4 +72,10 @@ async function me(req, res) {
   res.json({ user });
 }
 
-module.exports = { login, me };
+function logout(req, res) {
+  // Clear HttpOnly auth cookie
+  res.clearCookie('access_token', { path: '/' });
+  return res.json({ ok: true });
+}
+
+module.exports = { login, me, logout };

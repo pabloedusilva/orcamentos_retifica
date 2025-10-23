@@ -201,10 +201,13 @@ class LoginManager {
 
 	// Static method to logout (for use in dashboard)
 	static logout() {
-		try { 
-			api.setToken(''); 
-			localStorage.removeItem('userSession'); 
+		try {
+			// Clear local token/session
+			api.setToken('');
+			localStorage.removeItem('userSession');
 			localStorage.removeItem('currentUsername');
+			// Ask server to clear HttpOnly cookie
+			fetch((localStorage.getItem('apiBase') || window.location.origin) + '/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 		} catch {}
 		window.location.href = '/login';
 	}
@@ -218,9 +221,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	const startBtn = document.getElementById('start-intro');
 	const loginContainer = document.querySelector('.login-container');
 
-	// Guard to prevent double initialization
-	let initialized = false;
-
 	function revealLogin() {
 		if (overlay && !overlay.classList.contains('hidden')) {
 			overlay.classList.add('hidden');
@@ -228,23 +228,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		loginContainer?.classList.add('reveal-login');
 	}
 
-	async function validateSession() {
-		// Validate token by calling /auth/me; clear invalid token to avoid redirect loop
-		try {
-			const token = api.getToken();
-			if (!token) return false;
-			await api.get('/api/v1/auth/me');
-			return true;
-		} catch (err) {
-			// On 401 or failure, ensure token is cleared
-			try { api.setToken(''); } catch {}
-			return false;
-		}
-	}
-
 	async function startIntro() {
 		// If intro elements are missing (fallback), just show login
-		if (!overlay || !video) { initializeLogin(); return; }
+		if (!overlay || !video) {
+			initializeLogin();
+			return;
+		}
 
 		// Try to autoplay muted (browser policy)
 		try {
@@ -257,7 +246,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		// When video ends, reveal login
-		video.addEventListener('ended', () => { revealLogin(); initializeLogin(); });
+		video.addEventListener('ended', () => {
+			revealLogin();
+			initializeLogin();
+		});
 
 		// Se autoplay bloqueado, usuário precisa iniciar o vídeo
 		if (startBtn) {
@@ -273,18 +265,12 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	function initializeLogin() {
-		if (initialized) return; // avoid double init
-		initialized = true;
-
-		// Check if user is already authenticated (server-validated)
-		validateSession().then((valid) => {
-			if (valid) {
-				window.location.href = '/';
-				return;
-			}
-			// Not valid or no token: ensure login UI is ready
-			new LoginManager();
-		});
+		// Check if user is already authenticated
+		if (LoginManager.isAuthenticated()) {
+			window.location.href = '/';
+			return;
+		}
+		new LoginManager();
 	}
 
 	startIntro();

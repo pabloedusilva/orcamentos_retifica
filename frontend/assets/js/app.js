@@ -324,9 +324,13 @@ function setupEventListeners() {
     // Logout: limpar sessão e token com segurança
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            try { api.setToken(''); } catch {}
-            // Redirecionamento direto para a página de login
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                api.setToken('');
+                // Limpa cookie HttpOnly no servidor
+                const apiBase = localStorage.getItem('apiBase') || window.location.origin;
+                await fetch(apiBase + '/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+            } catch {}
             window.location.href = '/login';
         });
     }

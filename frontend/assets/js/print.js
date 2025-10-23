@@ -269,7 +269,33 @@
   }
 
   function generateAllVias(orcamento, cliente) {
-    return `${generateOrcamentoPreview(orcamento, cliente, 'vendedor')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'cliente')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'funcionarios')}`;
+    return generateVias(orcamento, cliente, ['vendedor', 'cliente', 'funcionarios']);
+  }
+
+  function getSelectedVias() {
+    const order = ['vendedor','cliente','funcionarios'];
+    const map = {
+      vendedor: document.getElementById('via-select-vendedor'),
+      cliente: document.getElementById('via-select-cliente'),
+      funcionarios: document.getElementById('via-select-funcionarios')
+    };
+    const selected = order.filter(key => map[key] && map[key].checked);
+    return selected;
+  }
+
+  function ensureSelectedViasDefault() {
+    // Garante que ao abrir a prévia todas as vias estão selecionadas por padrão
+    const ids = ['via-select-vendedor','via-select-cliente','via-select-funcionarios'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.checked = true; });
+  }
+
+  function generateVias(orcamento, cliente, viasArr) {
+    const parts = [];
+    viasArr.forEach((via, idx) => {
+      parts.push(generateOrcamentoPreview(orcamento, cliente, via));
+      if (idx < viasArr.length - 1) parts.push('<div class="page-break"></div>');
+    });
+    return parts.join('');
   }
 
   function detectDevice() {
@@ -322,6 +348,8 @@
     const previewHtml = generateOrcamentoPreview(orcamento, cliente);
     document.getElementById('orcamento-preview-content').innerHTML = previewHtml;
     G.openModal && G.openModal('print-preview-modal');
+    // Selecionar todas as vias por padrão ao abrir
+    ensureSelectedViasDefault();
   }
 
   function switchViaPreview(tipoVia) {
@@ -340,9 +368,16 @@
     const id = getPreviewOrcamentoId(); if (!id) return;
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(id)); if (!orcamento) return;
-  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const selected = getSelectedVias();
     const subject = encodeURIComponent(`Orçamento #${orcamento.id} - Retífica`);
-    const body = encodeURIComponent(buildOrcamentoText(orcamento));
+    let bodyText = '';
+    if (selected.length) {
+      const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
+      bodyText += `Vias selecionadas: ${selected.map(v => viaNames[v]).join(', ')}\n\n`;
+    }
+    bodyText += buildOrcamentoText(orcamento);
+    const body = encodeURIComponent(bodyText);
     const to = cliente?.email ? encodeURIComponent(cliente.email) : '';
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   }
@@ -351,10 +386,11 @@
     const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-    const viaType = getCurrentViaType();
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos 1 via para compartilhar.', { title: 'Atenção' }); return; }
     await preloadCompanyLogo();
-    const viaHtml = generateOrcamentoPreview(orcamento, cliente, viaType);
+    const viaHtml = generateVias(orcamento, cliente, selected);
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = viaHtml; tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px'; tempDiv.style.top = '0'; tempDiv.style.width = '210mm'; tempDiv.style.backgroundColor = '#ffffff';
     const images = tempDiv.querySelectorAll('img');
@@ -382,11 +418,13 @@
       while (heightLeft >= 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight; }
       const id = getPreviewOrcamentoId() || 'orcamento';
       const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-      const fileName = `orcamento-${clienteNome}-${id}-${viaType}.pdf`;
+      const viasSlug = selected.join('-');
+      const fileName = `orcamento-${clienteNome}-${id}-${viasSlug}.pdf`;
       const pdfBlob = pdf.output('blob');
       const serverUrl = await uploadPdfToServer(pdfBlob, fileName);
       const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
-      const message = `Olá ${cliente ? cliente.nome : 'Cliente'}! Segue o orçamento #${id} (Via ${viaNames[viaType]}). Você pode visualizar acessando: ${serverUrl}`;
+      const viasLabel = selected.map(v => viaNames[v]).join(', ');
+      const message = `Olá ${cliente ? cliente.nome : 'Cliente'}! Segue o orçamento #${id} (Vias: ${viasLabel}). Você pode visualizar acessando: ${serverUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
   showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' });
@@ -413,7 +451,9 @@
       const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
       const S = getAppState();
       const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-  const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+      const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+      const selected = getSelectedVias();
+      if (!selected.length) { showAlert('Selecione pelo menos 1 via para baixar.', { title: 'Atenção' }); return; }
       // Prefer server-side PDF if API is available
       try {
         if (window.api && api.API_BASE) {
@@ -432,7 +472,7 @@
           }
         }
       } catch (e) { /* fallback to client-side */ }
-      const todasVias = `${generateOrcamentoPreview(orcamento, cliente, 'vendedor')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'cliente')}<div class="page-break"></div>${generateOrcamentoPreview(orcamento, cliente, 'funcionarios')}`;
+  const todasVias = generateVias(orcamento, cliente, selected);
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = `<div style="width:210mm;background:white;font-family:Arial,sans-serif;font-size:11px;line-height:1.3;">${todasVias}</div>`;
       tempDiv.style.position='absolute'; tempDiv.style.left='-9999px'; tempDiv.style.top='0';
@@ -445,7 +485,8 @@
       let heightLeft = imgHeight; let position = 0; pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight;
       while (heightLeft >= 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight; }
       const id = getPreviewOrcamentoId() || 'orcamento'; const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-      pdf.save(`orcamento-${clienteNome}-${id}-3vias.pdf`);
+      const viasSlug = selected.join('-');
+      pdf.save(`orcamento-${clienteNome}-${id}-${viasSlug}.pdf`);
     } catch (e) {
   showAlert('Erro ao gerar impressão. Tente novamente.', { title: 'Erro' });
     }
@@ -1207,7 +1248,9 @@
     if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
 
     const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-    const todasVias = generateAllVias(orcamento, cliente);
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos 1 via para imprimir.', { title: 'Atenção' }); return; }
+    const todasVias = generateVias(orcamento, cliente, selected);
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -1257,7 +1300,9 @@
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
     const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
-    const todasVias = generateAllVias(orcamento, cliente);
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos 1 via para imprimir.', { title: 'Atenção' }); return; }
+    const todasVias = generateVias(orcamento, cliente, selected);
     // Usar iframe oculto para evitar bloqueio de popup em alguns dispositivos
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';

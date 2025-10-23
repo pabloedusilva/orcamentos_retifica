@@ -87,10 +87,10 @@ if (!AUTH_RATE_DISABLED) {
 // ensures it runs before the nested router handles the request.
 app.use('/api/v1/auth/login', authLimiter);
 
-// General rate limit for all frontend routes
+// General rate limit for all frontend routes (allow burst page reloads)
 const frontendLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 page loads per minute
+  windowMs: 60 * 1000, // 1 minute
+  max: 300, // allow at least 15+ simultaneous reloads comfortably
   message: 'Too many requests, please slow down.',
   standardHeaders: true,
   legacyHeaders: false

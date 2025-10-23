@@ -331,7 +331,8 @@ function setupEventListeners() {
                 const apiBase = localStorage.getItem('apiBase') || window.location.origin;
                 await fetch(apiBase + '/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
             } catch {}
-            window.location.href = '/login';
+            // Use replace para não deixar histórico de dashboard
+            window.location.replace('/login');
         });
     }
 

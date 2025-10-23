@@ -209,7 +209,8 @@ class LoginManager {
 			// Ask server to clear HttpOnly cookie
 			fetch((localStorage.getItem('apiBase') || window.location.origin) + '/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 		} catch {}
-		window.location.href = '/login';
+		// Prevent returning to dashboard via history
+		window.location.replace('/login');
 	}
 }
 
@@ -249,49 +250,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	async function startIntro() {
 		// If intro elements are missing (fallback), just show login
-		if (!overlay || !video) {
-			revealLogin();
-			return;
-		}
+		if (!overlay || !video) { revealLogin(); return; }
 
-		// Try to autoplay muted (browser policy)
+		// Configure for autoplay
 		try {
+			video.setAttribute('autoplay', '');
+			video.setAttribute('muted', '');
+			video.playsInline = true;
 			video.muted = true;
 			await video.play();
 		} catch (e) {
-			// Autoplay bloqueado: exibir botão central para iniciar
+			// Autoplay bloqueado: exibir botão para iniciar (não é pular, é iniciar)
 			console.warn('Autoplay blocked:', e);
 			if (startBtn) startBtn.style.display = 'block';
 		}
 
-		// Safety fallback: if nada acontecer em 6s, mostra login
-		const fallback = setTimeout(() => { revealLogin(); }, 6000);
-
-		// When video ends, reveal login
+		// Quando o vídeo terminar, mostra o login (sem opção de pular antes)
 		const onEnded = () => {
-			clearTimeout(fallback);
 			revealLogin();
 			video.removeEventListener('ended', onEnded);
 		};
 		video.addEventListener('ended', onEnded);
 
-		// If video errors, fallback to login
+		// Se houver erro no vídeo, ainda assim precisamos permitir continuar (não é pular, é falha)
 		video.addEventListener('error', () => {
-			clearTimeout(fallback);
+			console.warn('Video error');
 			revealLogin();
 		});
 
-		// Se autoplay bloqueado, usuário precisa iniciar o vídeo
+		// Se autoplay foi bloqueado, iniciar via clique
 		if (startBtn) {
 			startBtn.addEventListener('click', async () => {
 				startBtn.style.display = 'none';
-				try {
-					await video.play();
-				} catch(err) {
-					console.warn('Video start failed:', err);
-					// Em falha, revela login direto
-					revealLogin();
-				}
+				try { await video.play(); } catch(err) { console.warn('Video start failed:', err); revealLogin(); }
 			});
 		}
 	}

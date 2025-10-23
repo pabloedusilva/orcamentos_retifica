@@ -198,6 +198,9 @@ app.use(express.static(frontendPath, {
 // Clean URL routing for frontend pages
 // Protect main app with server-side auth (cookie or header)
 app.get('/', auth(true, { mode: 'redirect' }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
@@ -217,6 +220,9 @@ app.get('/login', (req, res) => {
       return res.redirect('/');
     }
   } catch (_) {}
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(frontendPath, 'auth', 'login.html'));
 });
 
@@ -241,7 +247,10 @@ app.get('*', (req, res) => {
       const issuer = process.env.JWT_ISSUER || 'orcamentos-api';
       const audience = process.env.JWT_AUDIENCE || 'web';
       jwt.verify(token, process.env.JWT_SECRET, { issuer, audience });
-      return res.sendFile(path.join(frontendPath, 'index.html'));
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  return res.sendFile(path.join(frontendPath, 'index.html'));
     } catch (_) {
       return res.redirect('/login');
     }

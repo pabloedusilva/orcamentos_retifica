@@ -73,8 +73,14 @@ async function me(req, res) {
 }
 
 function logout(req, res) {
-  // Clear HttpOnly auth cookie
-  res.clearCookie('access_token', { path: '/' });
+  // Clear HttpOnly auth cookie (must match cookie options)
+  const secureCookie = (process.env.NODE_ENV === 'production') || process.env.ENFORCE_HTTPS === 'true';
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: 'lax',
+    path: '/'
+  });
   return res.json({ ok: true });
 }
 

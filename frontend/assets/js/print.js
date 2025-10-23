@@ -595,6 +595,11 @@
     .page-break {
       page-break-before: always;
     }
+    /* Forçar retrato também no estilo mobile */
+    @page {
+      margin: 10mm;
+      size: A4 portrait;
+    }
         
     @media screen and (max-width: 768px) {
       .orcamento-header {
@@ -1145,11 +1150,12 @@
     }
 
     /* Ajustes de impressão para múltiplas páginas e dispositivos
-       - Não forçar tamanho A4 para permitir que o dispositivo escolha
+       - Forçar orientação retrato (em pé) em todos os dispositivos
+       - Definir tamanho A4 para padronizar escala
        - Margens suaves que funcionam no Android/Chrome e iOS */
     @page {
       margin: 10mm;
-      size: auto;
+      size: A4 portrait;
     }
 
     /* Configurações globais para melhor renderização de imagens */

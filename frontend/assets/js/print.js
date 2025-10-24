@@ -389,33 +389,33 @@
     const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const selected = getSelectedVias();
     if (!selected.length) { showAlert('Selecione pelo menos 1 via para compartilhar.', { title: 'Atenção' }); return; }
-    await preloadCompanyLogo();
-    const viaHtml = generateVias(orcamento, cliente, selected);
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = viaHtml; tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px'; tempDiv.style.top = '0'; tempDiv.style.width = '210mm'; tempDiv.style.backgroundColor = '#ffffff';
-    const images = tempDiv.querySelectorAll('img');
-    for (const img of images) {
-      if (img.src && !img.src.startsWith('data:')) {
-        try {
-          const base64Url = await convertLocalImageToBase64Safe(img.src);
-          if (base64Url && base64Url.startsWith('data:')) img.src = base64Url; else replaceImageWithPlaceholder(img);
-        } catch(e) { replaceImageWithPlaceholder(img); }
-        img.style.maxWidth = '100px'; img.style.maxHeight = '100px'; img.style.objectFit = 'contain'; img.style.display = 'block'; img.removeAttribute('crossorigin');
-      }
-    }
-    document.body.appendChild(tempDiv);
     try {
-      await new Promise(r => setTimeout(r, 1000));
-      const html2canvasOptions = { scale: 1.5, useCORS: false, allowTaint: true, backgroundColor: '#ffffff', logging: false, imageTimeout: 0, removeContainer: false, foreignObjectRendering: false, width: tempDiv.offsetWidth, height: tempDiv.offsetHeight };
-      const canvas = await html2canvas(tempDiv, html2canvasOptions);
-      document.body.removeChild(tempDiv);
-      let imgData;
-      try { imgData = canvas.toDataURL('image/png', 1.0); }
-      catch(taintError){ try { imgData = canvas.toDataURL('image/jpeg', 0.7); } catch(finalError){ const cleanDiv = tempDiv.cloneNode(true); document.body.appendChild(cleanDiv); cleanDiv.querySelectorAll('img').forEach(img => replaceImageWithPlaceholder(img)); const cleanCanvas = await html2canvas(cleanDiv, html2canvasOptions); document.body.removeChild(cleanDiv); imgData = cleanCanvas.toDataURL('image/jpeg', 0.7); } }
+      await preloadCompanyLogo();
       const { jsPDF } = window.jspdf; const pdf = new jsPDF('p','mm','a4');
-      const imgWidth = 210; const pageHeight = 295; const imgHeight = (canvas.height * imgWidth) / canvas.width; let heightLeft = imgHeight; let position = 0;
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight;
-      while (heightLeft >= 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight; }
+      const margin = 10; const pageWidth = 210; const pageHeight = 297; const contentWidth = pageWidth - margin*2;
+      for (const via of selected) {
+        const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'absolute'; wrapper.style.left = '-9999px'; wrapper.style.top = '0'; wrapper.style.width = '210mm'; wrapper.style.backgroundColor = '#ffffff';
+        wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
+        document.body.appendChild(wrapper);
+        await preloadImagesInElement(wrapper);
+        const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
+        document.body.removeChild(wrapper);
+        const imgData = canvas.toDataURL('image/png', 0.95);
+        const imgHeight = (canvas.height * contentWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = margin;
+        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+        heightLeft -= (pageHeight - margin*2);
+        while (heightLeft > 0) {
+          pdf.addPage();
+          position = margin - (imgHeight - heightLeft) + 0.1; // pequeno ajuste para evitar linhas negras
+          pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+          heightLeft -= (pageHeight - margin*2);
+        }
+        if (via !== selected[selected.length-1]) pdf.addPage();
+      }
       const id = getPreviewOrcamentoId() || 'orcamento';
       const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
       const viasSlug = selected.join('-');
@@ -427,8 +427,7 @@
       const message = `Olá ${cliente ? cliente.nome : 'Cliente'}! Segue o orçamento #${id} (Vias: ${viasLabel}). Você pode visualizar acessando: ${serverUrl}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
-  showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' });
-      if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv);
+      showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' });
     }
   }
 
@@ -472,21 +471,33 @@
           }
         }
       } catch (e) { /* fallback to client-side */ }
-  const todasVias = generateVias(orcamento, cliente, selected);
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = `<div style="width:210mm;background:white;font-family:Arial,sans-serif;font-size:11px;line-height:1.3;">${todasVias}</div>`;
-      tempDiv.style.position='absolute'; tempDiv.style.left='-9999px'; tempDiv.style.top='0';
-      await preloadImagesInElement(tempDiv); document.body.appendChild(tempDiv);
-      const canvas = await html2canvas(tempDiv, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: tempDiv.scrollWidth, height: tempDiv.scrollHeight });
-      document.body.removeChild(tempDiv);
-      const imgData = canvas.toDataURL('image/png', 0.9);
       const { jsPDF } = window.jspdf; const pdf = new jsPDF('p','mm','a4');
-      const imgWidth = 210; const pageHeight = 297; const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight; let position = 0; pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight;
-      while (heightLeft >= 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); heightLeft -= pageHeight; }
-      const id = getPreviewOrcamentoId() || 'orcamento'; const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-      const viasSlug = selected.join('-');
-      pdf.save(`orcamento-${clienteNome}-${id}-${viasSlug}.pdf`);
+      const margin = 10; const pageWidth = 210; const pageHeight = 297; const contentWidth = pageWidth - margin*2;
+      for (const via of selected) {
+        const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
+        const wrapper = document.createElement('div');
+        wrapper.style.position='absolute'; wrapper.style.left='-9999px'; wrapper.style.top='0'; wrapper.style.width='210mm'; wrapper.style.backgroundColor='#ffffff';
+        wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
+        document.body.appendChild(wrapper);
+        await preloadImagesInElement(wrapper);
+        const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
+        document.body.removeChild(wrapper);
+        const imgData = canvas.toDataURL('image/png', 0.95);
+        const imgHeight = (canvas.height * contentWidth) / canvas.width;
+        let heightLeft = imgHeight; let position = margin;
+        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+        heightLeft -= (pageHeight - margin*2);
+        while (heightLeft > 0) {
+          position = margin - (imgHeight - heightLeft) + 0.1; // ajuste anti-linha
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+          heightLeft -= (pageHeight - margin*2);
+        }
+        if (via !== selected[selected.length-1]) pdf.addPage();
+      }
+  const id = getPreviewOrcamentoId() || 'orcamento'; const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+  const viasSlug = selected.join('-');
+  pdf.save(`orcamento-${clienteNome}-${id}-${viasSlug}.pdf`);
     } catch (e) {
   showAlert('Erro ao gerar impressão. Tente novamente.', { title: 'Erro' });
     }
@@ -1299,7 +1310,7 @@
     const orcamentoId = getPreviewOrcamentoId();
     const S = getAppState();
     const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
-    const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
+  const cliente = S.clientes.find(c => c.id === orcamento.clienteId);
     const selected = getSelectedVias();
     if (!selected.length) { showAlert('Selecione pelo menos 1 via para imprimir.', { title: 'Atenção' }); return; }
     const todasVias = generateVias(orcamento, cliente, selected);

@@ -476,10 +476,8 @@
       const serverUrl = await uploadPdfToServer(pdfBlob, fileName);
       
       // Preparar mensagem do WhatsApp
-      const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
-      const viasLabel = selected.map(v => viaNames[v]).join(', ');
       const clienteNomeCompleto = cliente.nome;
-      const message = `Olá ${clienteNomeCompleto}! Segue o orçamento #${orcamentoId} (Vias: ${viasLabel}).\n\nVocê pode visualizar acessando:\n${serverUrl}`;
+      const message = `Olá ${clienteNomeCompleto}! Segue o orçamento #${orcamentoId}.\n\nVocê pode visualizar acessando:\n${serverUrl}`;
       
       // Limpar telefone e abrir WhatsApp
       const telefoneRaw = cliente.telefone.replace(/\D/g,'');

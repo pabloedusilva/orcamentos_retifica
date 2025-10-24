@@ -45,11 +45,6 @@
                     <span class="clock-time" id="clock-time">--:--</span>
                     <span class="clock-date" id="clock-date">--/--/----</span>
                 </div>
-                <!-- Real-time printer connection status under the clock -->
-                <div id="printer-sidebar-status" class="printer-sidebar-status" aria-live="polite" title="Status da impressora">
-                    <span class="ps-dot" aria-hidden="true"></span>
-                    <span class="ps-text">Sem impressora</span>
-                </div>
             </div>
             
             <ul class="nav-menu">
@@ -77,10 +72,6 @@
                     <i class="fas fa-cog"></i>
                     <span>Configurações</span>
                 </li>
-                <li class="nav-item" data-section="dispositivos">
-                    <i class="fas fa-print"></i>
-                    <span>Dispositivos</span>
-                </li>
             </ul>
             <div class="sidebar-footer">
                 <button class="btn btn-secondary btn-sm" id="logout-btn" title="Sair">
@@ -107,10 +98,6 @@
                         <i class="fas fa-plus"></i>
                         Novo Orçamento
                     </button>
-                    <div id="printer-status-badge" class="printer-badge" title="Status da impressora" style="cursor:pointer; display:none;">
-                        <span class="badge-dot"></span>
-                        <span class="badge-text">--</span>
-                    </div>
                 </div>
             </header>
 
@@ -320,29 +307,6 @@
                         <tbody id="servicos-list">
                             <!-- Dados serão inseridos aqui pelo JavaScript -->
                         </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Dispositivos Section -->
-            <section class="section" id="dispositivos">
-                <div class="section-header">
-                    <h2>Dispositivos</h2>
-                    <p class="page-subtitle">Impressoras de rede cadastradas</p>
-                </div>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Host</th>
-                                <th>Protocolo</th>
-                                <th>Porta</th>
-                                <th>Conexão</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="devices-list"></tbody>
                     </table>
                 </div>
             </section>
@@ -920,7 +884,6 @@
     <script src="assets/js/sections/pecas.js?v=20251021-01"></script>
     <script src="assets/js/sections/servicos.js?v=20251021-01"></script>
     <script src="assets/js/sections/configuracoes.js?v=20251021-01"></script>
-    <script src="assets/js/sections/dispositivos.js?v=20251021-01"></script>
     <script src="assets/js/components/footer.js?v=20251021-01"></script>
 </body>
 </html>

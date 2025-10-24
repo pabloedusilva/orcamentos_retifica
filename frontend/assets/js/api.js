@@ -47,18 +47,5 @@
     return res.json(); // { url }
   }
 
-  // Printers API
-  async function listPrinters(){ return get('/api/v1/printers'); }
-  async function getConnectedPrinter(){ return get('/api/v1/printers/connected'); }
-  async function getConnectedPrinterStatus(){ return get('/api/v1/printers/status/connected'); }
-  async function connectPrinter(id){ return post(`/api/v1/printers/${id}/connect`, {}); }
-  async function disconnectPrinter(id){ return post(`/api/v1/printers/${id}/disconnect`, {}); }
-  async function testPrinter(body){ return post('/api/v1/printers/test', body); }
-  async function createPrinter(printer){ return post('/api/v1/printers', printer); }
-  async function updatePrinter(id, data){ return put(`/api/v1/printers/${id}`, data); }
-  async function deletePrinter(id){ return del(`/api/v1/printers/${id}`); }
-  async function setDefaultPrinter(id){ return post(`/api/v1/printers/${id}/default`, {}); }
-
-  window.api = { API_BASE, getToken, setToken, isAuthed, get, post, put, patch, del, uploadImage,
-    listPrinters, getConnectedPrinter, getConnectedPrinterStatus, connectPrinter, disconnectPrinter, testPrinter, createPrinter, updatePrinter, deletePrinter, setDefaultPrinter };
+  window.api = { API_BASE, getToken, setToken, isAuthed, get, post, put, patch, del, uploadImage };
 })();

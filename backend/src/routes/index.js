@@ -8,7 +8,6 @@ const servicoRoutes = require('./v1/servicos');
 const orcRoutes = require('./v1/orcamentos');
 const filesRoutes = require('./v1/files');
 const settingsRoutes = require('./v1/settings');
-const printersRoutes = require('./v1/printers');
 
 router.use('/v1/auth', authRoutes);
 router.use('/v1/clientes', clienteRoutes);
@@ -17,6 +16,5 @@ router.use('/v1/servicos', servicoRoutes);
 router.use('/v1/orcamentos', orcRoutes);
 router.use('/v1/files', filesRoutes);
 router.use('/v1/settings', settingsRoutes);
-router.use('/v1/printers', printersRoutes);
 
 module.exports = { router };

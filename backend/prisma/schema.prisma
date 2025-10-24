@@ -147,29 +147,3 @@ model OrcamentoItem {
   @@index([orcamentoId])
   @@map("orcamento_items")
 }
-
-// ================================
-// IMPRESSORAS (Rede/IPP/RAW9100)
-// ================================
-
-enum PrinterProtocol {
-  ipp
-  raw9100
-}
-
-model Printer {
-  id          String          @id @default(cuid())
-  name        String          @db.VarChar(100)
-  host        String          @db.VarChar(200)
-  protocol    PrinterProtocol
-  port        Int
-  path        String?         @db.VarChar(200) // IPP path, e.g., /ipp/print
-  isConnected Boolean         @default(false)
-  lastUsedAt  DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-
-  @@map("printers")
-  @@index([host])
-  @@index([isConnected])
-}

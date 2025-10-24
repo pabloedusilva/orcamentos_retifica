@@ -16,6 +16,7 @@ let state = {
         cep: '01234-567',
         logoDataUrl: '',
         logoPreset: '',
+        selectedLogo: '',
         uploadedLogos: []
     },
     // Configurações de conta (usuário/senha)
@@ -37,7 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
     renderAllLists();
     initSettingsUI();
     initWorldTimeClock();
-    initDevicesUI();
     // Navegação via cards do dashboard
     const statCards = document.querySelectorAll('.stat-card[data-goto]');
     statCards.forEach(card => {
@@ -428,132 +428,6 @@ function setupEventListeners() {
     });
 }
 
-// Devices / Printers UI
-async function initDevicesUI(){
-    let badge = document.getElementById('printer-status-badge');
-    // If not present (e.g., markup changed), create dynamically and attach to body
-    if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'printer-status-badge';
-        badge.className = 'printer-badge';
-        badge.title = 'Status da impressora';
-        badge.style.cssText = 'cursor:pointer; display:none;';
-        const dot = document.createElement('span'); dot.className = 'badge-dot';
-    const text = document.createElement('span'); text.className = 'badge-text'; text.textContent = '--';
-        badge.appendChild(dot); badge.appendChild(text);
-        document.body.appendChild(badge);
-    } else {
-        // If badge exists but is not under <body> (e.g., inside header), move it to body
-        if (badge.parentNode !== document.body) {
-            try { badge.parentNode.removeChild(badge); } catch {}
-            document.body.appendChild(badge);
-        }
-        // Clean any conflicting inline styles
-        badge.style.position = '';
-        badge.style.right = '';
-        badge.style.zIndex = '';
-    }
-    // Keep badge above footer: compute bottom = footer height + gap
-    function updateBadgePosition(){
-        if (!badge) return;
-        const footer = document.querySelector('.site-footer');
-        let bottom = 16; // default gap when no footer found
-        if (footer && footer.offsetParent !== null) {
-            const fh = footer.offsetHeight || 0;
-            bottom = fh + 16; // 16px gap above the footer top
-        }
-        badge.style.bottom = bottom + 'px';
-    }
-    // Reposition on resize and whenever the footer is injected/changes
-    window.addEventListener('resize', updateBadgePosition);
-    // Observe for footer injection by components/footer.js
-    const bodyObserver = new MutationObserver(() => updateBadgePosition());
-    bodyObserver.observe(document.body, { childList: true, subtree: true });
-    // Initial position (and one delayed to catch late footer render)
-    updateBadgePosition();
-    setTimeout(updateBadgePosition, 200);
-    if (badge) {
-        badge.addEventListener('click', () => navigateToSection('dispositivos'));
-    }
-    // Ensure sidebar status element exists
-    function ensureSidebarStatus(){
-        let el = document.getElementById('printer-sidebar-status');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'printer-sidebar-status';
-            el.className = 'printer-sidebar-status';
-            el.setAttribute('aria-live', 'polite');
-            el.title = 'Status da impressora';
-            el.innerHTML = '<span class="ps-dot"></span><span class="ps-text">Sem impressora</span>';
-            const clock = document.getElementById('sidebar-clock');
-            const logo = document.querySelector('.sidebar .logo');
-            if (clock && clock.parentNode) {
-                clock.parentNode.insertBefore(el, clock.nextSibling);
-            } else if (logo) {
-                logo.appendChild(el);
-            } else {
-                document.body.appendChild(el);
-            }
-        }
-        return el;
-    }
-    function updateSidebarNeutral(){
-        const el = ensureSidebarStatus();
-        const dot = el.querySelector('.ps-dot');
-        const text = el.querySelector('.ps-text');
-        if (dot) dot.style.background = '#95a5a6';
-        if (text) text.textContent = 'Sem impressora';
-    }
-    function updateSidebarConnected(name, host, ok){
-        const el = ensureSidebarStatus();
-        const dot = el.querySelector('.ps-dot');
-        const text = el.querySelector('.ps-text');
-        if (dot) dot.style.background = ok ? '#2ecc71' : '#e74c3c';
-        const label = name ? `${name}` : 'Conectada';
-        if (text) { text.textContent = ok ? `${label}` : `${label} (falha)`; text.title = `${name || 'Impressora'} • ${host || ''}`; }
-    }
-
-    // Neutral placeholder state (visible even without default printer)
-    function showNeutralBadge(){
-        if (!badge) return;
-        const dot = badge.querySelector('.badge-dot');
-        const text = badge.querySelector('.badge-text');
-        badge.classList.add('show');
-        dot.style.width = '10px'; dot.style.height = '10px'; dot.style.borderRadius = '50%';
-        dot.style.background = '#95a5a6'; // grey
-        text.innerHTML = `<span class="badge-name">Nenhuma conectada</span>`;
-        updateSidebarNeutral();
-    }
-    async function updateBadge(){
-        try {
-            const data = await api.getConnectedPrinterStatus();
-            if (!badge) return;
-            if (data && data.printer) {
-                const dot = badge.querySelector('.badge-dot');
-                const text = badge.querySelector('.badge-text');
-                badge.classList.add('show');
-                const connected = !!data.connected;
-                dot.style.width = '10px'; dot.style.height = '10px'; dot.style.borderRadius = '50%';
-                dot.style.background = connected ? '#2ecc71' : '#e74c3c';
-                const name = data.printer.name || 'Impressora';
-                const host = data.printer.host;
-                text.innerHTML = `<span class="badge-name">${name}</span> <span class="sep">•</span> <span class="badge-host">${host}</span>`;
-                updateSidebarConnected(name, host, connected);
-            } else {
-                showNeutralBadge();
-            }
-        } catch { showNeutralBadge(); }
-    }
-    // Expose for other modules (e.g., dispositivos.js)
-    window.refreshPrinterBadge = updateBadge;
-
-    // initial
-    showNeutralBadge();
-    updateBadge();
-    // periodic badge refresh (5s)
-    setInterval(updateBadge, 5000);
-}
-
 // Configurações (UI)
 function initSettingsUI() {
     // Carregar configurações do banco ao abrir a tela
@@ -658,6 +532,7 @@ function populateSettingsForm() {
                 const dataUrl = reader.result;
                 state.company.logoDataUrl = dataUrl;
                 state.company.logoPreset = '';
+                state.company.selectedLogo = dataUrl;
                 if (!Array.isArray(state.company.uploadedLogos)) state.company.uploadedLogos = [];
                 state.company.uploadedLogos.push(dataUrl);
                 updateLogoPreview();
@@ -690,6 +565,7 @@ function populateSettingsForm() {
             cep: '01234-567',
             logoDataUrl: '',
             logoPreset: '',
+            selectedLogo: '',
             uploadedLogos: []
         };
         document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
@@ -724,6 +600,18 @@ function populateSettingsForm() {
         // Se já existir uploads salvos, renderizar thumbs
         if (state.company.uploadedLogos && state.company.uploadedLogos.length) {
             renderUploadThumbs();
+            // Marcar ativo baseado em selectedLogo do banco
+            if (state.company.selectedLogo && !state.company.selectedLogo.startsWith('preset:')) {
+                const row = document.getElementById('logo-options-row');
+                if (row) {
+                    const uploads = state.company.uploadedLogos || [];
+                    const currentIdx = uploads.indexOf(state.company.selectedLogo);
+                    if (currentIdx >= 0) {
+                        const currentEl = row.querySelector(`.logo-upload-thumb[data-idx="${currentIdx}"]`);
+                        if (currentEl) currentEl.classList.add('active');
+                    }
+                }
+            }
         }
     }
 
@@ -2215,6 +2103,7 @@ function loadFromStorage() {
             cep: '',
             logoDataUrl: '',
             logoPreset: '',
+            selectedLogo: '',
             uploadedLogos: []
         };
     }

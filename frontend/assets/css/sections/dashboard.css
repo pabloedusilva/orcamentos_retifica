@@ -14,3 +14,143 @@
 /* Printer status badge */
 .printer-badge { background: #fff; border: 1px solid var(--border-color); border-radius: 20px; padding: 6px 10px; box-shadow: var(--shadow-sm); }
 .badge-success { display: inline-block; background: #eafaf1; color: #2ecc71; border: 1px solid #d3f1e0; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+
+/* Daily Verse Card - Seguindo o Design do App */
+.daily-verse-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.daily-verse-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--primary-gradient);
+    opacity: 1;
+}
+
+.daily-verse-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.daily-verse-card h2 {
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-left: 4px;
+}
+
+.daily-verse-card h2 i {
+    font-size: 12px;
+    opacity: 0.6;
+    color: var(--gold-500);
+}
+
+#dailyVersesWrapper {
+    padding-left: 4px;
+}
+
+#dailyVersesWrapper .dailyVerses {
+    color: var(--text-primary) !important;
+    font-size: 16px !important;
+    line-height: 1.8 !important;
+    font-weight: 400 !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+#dailyVersesWrapper .dailyVerses p {
+    margin: 0 !important;
+}
+
+#dailyVersesWrapper .dailyVerses p:first-child {
+    font-style: italic;
+    color: var(--gray-900) !important;
+    margin-bottom: 12px !important;
+    font-size: 16px !important;
+    line-height: 1.8 !important;
+    quotes: '"' '"' ''' ''';
+}
+
+#dailyVersesWrapper .dailyVerses p:first-child::before {
+    content: open-quote;
+    color: var(--gold-500);
+    font-size: 24px;
+    margin-right: 4px;
+    line-height: 0;
+    vertical-align: -6px;
+    opacity: 0.4;
+}
+
+#dailyVersesWrapper .dailyVerses p:first-child::after {
+    content: close-quote;
+    color: var(--gold-500);
+    font-size: 24px;
+    margin-left: 2px;
+    line-height: 0;
+    vertical-align: -6px;
+    opacity: 0.4;
+}
+
+#dailyVersesWrapper .dailyVerses p:last-child {
+    font-size: 13px !important;
+    color: var(--text-secondary) !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    letter-spacing: 0.3px !important;
+}
+
+#dailyVersesWrapper a {
+    color: var(--text-secondary) !important;
+    text-decoration: none !important;
+    transition: color 0.2s ease;
+}
+
+#dailyVersesWrapper a:hover {
+    color: var(--gold-600) !important;
+}
+
+@media (max-width: 640px) {
+    .daily-verse-card {
+        padding: 20px;
+        border-radius: var(--border-radius);
+    }
+    
+    .daily-verse-card h2 {
+        font-size: 10px;
+        margin-bottom: 16px;
+    }
+    
+    #dailyVersesWrapper .dailyVerses {
+        font-size: 15px !important;
+    }
+    
+    #dailyVersesWrapper .dailyVerses p:first-child {
+        font-size: 15px !important;
+    }
+    
+    #dailyVersesWrapper .dailyVerses p:first-child::before,
+    #dailyVersesWrapper .dailyVerses p:first-child::after {
+        font-size: 20px;
+    }
+    
+    #dailyVersesWrapper .dailyVerses p:last-child {
+        font-size: 12px !important;
+    }
+}

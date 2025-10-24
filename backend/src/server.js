@@ -29,16 +29,26 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://dailyverses.net"],
       scriptSrcAttr: ["'unsafe-inline'"], // Permite event handlers inline (onclick, etc)
       imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "https://worldtimeapi.org", "https://nominatim.openstreetmap.org", "https://viacep.com.br", "https://cdnjs.cloudflare.com"],
+      connectSrc: ["'self'", "https://worldtimeapi.org", "https://nominatim.openstreetmap.org", "https://viacep.com.br", "https://cdnjs.cloudflare.com", "https://dailyverses.net"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"]
     }
   },
-  crossOriginEmbedderPolicy: false // Allows cross-origin resources for maps/APIs
+  crossOriginEmbedderPolicy: false, // Allows cross-origin resources for maps/APIs
+  crossOriginResourcePolicy: false, // Desabilita CORP
+  crossOriginOpenerPolicy: false // Desabilita COOP
 }));
+
+// Remove qualquer header COEP que possa ter sido definido
+app.use((req, res, next) => {
+  res.removeHeader('Cross-Origin-Embedder-Policy');
+  res.removeHeader('Cross-Origin-Resource-Policy');
+  res.removeHeader('Cross-Origin-Opener-Policy');
+  next();
+});
 
 // Parsing middleware
 app.use(express.json({ limit: '1mb' }));

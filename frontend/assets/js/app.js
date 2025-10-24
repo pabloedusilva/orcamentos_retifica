@@ -811,6 +811,9 @@ function populateSettingsForm() {
             }, durationMs);
         }
     }
+    
+    // Expor função para recarregamento externo
+    window.populateSettingsForm = populateSettingsForm;
 }
 
 // Prévia simples do logo (miniatura de upload)
@@ -880,6 +883,85 @@ function navigateToSection(sectionName) {
 
     document.querySelector('.page-title').textContent = titles[sectionName];
     document.querySelector('.page-subtitle').textContent = subtitles[sectionName];
+}
+
+// Recarregar seção específica
+async function reloadSection(sectionName) {
+    const button = event?.target?.closest?.('.btn-reload');
+    if (button) {
+        button.classList.add('reloading');
+        button.disabled = true;
+    }
+
+    try {
+        switch(sectionName) {
+            case 'dashboard':
+                // Recarregar estatísticas e orçamentos recentes
+                updateDashboard();
+                if (typeof renderOrcamentos === 'function') {
+                    renderOrcamentos();
+                }
+                break;
+
+            case 'orcamentos':
+                // Recarregar orçamentos do banco
+                const orcResp = await api.get('/api/v1/orcamentos');
+                state.orcamentos = Array.isArray(orcResp.orcamentos) ? orcResp.orcamentos : [];
+                if (typeof renderOrcamentos === 'function') {
+                    renderOrcamentos();
+                }
+                break;
+
+            case 'clientes':
+                // Recarregar clientes do banco
+                const cliResp = await api.get('/api/v1/clientes');
+                state.clientes = Array.isArray(cliResp.clientes) ? cliResp.clientes : [];
+                if (typeof renderClientes === 'function') {
+                    renderClientes();
+                }
+                break;
+
+            case 'pecas':
+                // Recarregar peças do banco
+                const pecResp = await api.get('/api/v1/pecas');
+                state.pecas = Array.isArray(pecResp.pecas) ? pecResp.pecas : [];
+                if (typeof renderPecas === 'function') {
+                    renderPecas();
+                }
+                break;
+
+            case 'servicos':
+                // Recarregar serviços do banco
+                const srvResp = await api.get('/api/v1/servicos');
+                state.servicos = Array.isArray(srvResp.servicos) ? srvResp.servicos : [];
+                if (typeof renderServicos === 'function') {
+                    renderServicos();
+                }
+                break;
+
+            case 'configuracoes':
+                // Recarregar configurações do banco
+                await loadSettingsFromDatabase();
+                await loadUserInfoFromDatabase();
+                if (typeof populateSettingsForm === 'function') {
+                    populateSettingsForm();
+                }
+                if (typeof updateLogoPreview === 'function') {
+                    updateLogoPreview();
+                }
+                break;
+        }
+    } catch (error) {
+        console.error(`Erro ao recarregar seção ${sectionName}:`, error);
+        showAlert('Erro ao atualizar dados. Tente novamente.', { title: 'Erro', isError: true });
+    } finally {
+        if (button) {
+            setTimeout(() => {
+                button.classList.remove('reloading');
+                button.disabled = false;
+            }, 400);
+        }
+    }
 }
 
 // Função auxiliar para carregar dados do backend antes de abrir modal

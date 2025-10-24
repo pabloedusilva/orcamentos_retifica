@@ -103,6 +103,12 @@
 
             <!-- Dashboard Section -->
             <section class="section active" id="dashboard">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-size: 24px; font-weight: 600; color: var(--text-primary); margin: 0;">Dashboard</h2>
+                    <button class="btn-reload" onclick="reloadSection('dashboard')" title="Recarregar dashboard">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
                 <div class="stats-grid">
                     <div class="stat-card" role="button" tabindex="0" data-goto="orcamentos">
                         <div class="stat-icon">
@@ -181,10 +187,15 @@
             <section class="section" id="orcamentos">
                 <div class="section-header">
                     <h2>Orçamentos</h2>
-                    <button class="btn btn-primary" onclick="openModal('orcamento-modal')">
-                        <i class="fas fa-plus"></i>
-                        Novo Orçamento
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn-reload" onclick="reloadSection('orcamentos')" title="Recarregar orçamentos">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="openModal('orcamento-modal')">
+                            <i class="fas fa-plus"></i>
+                            Novo Orçamento
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="filters">
@@ -223,10 +234,15 @@
             <section class="section" id="clientes">
                 <div class="section-header">
                     <h2>Clientes</h2>
-                    <button class="btn btn-primary" onclick="openModal('cliente-modal')">
-                        <i class="fas fa-plus"></i>
-                        Novo Cliente
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn-reload" onclick="reloadSection('clientes')" title="Recarregar clientes">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="openModal('cliente-modal')">
+                            <i class="fas fa-plus"></i>
+                            Novo Cliente
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="filters">
@@ -255,10 +271,15 @@
             <section class="section" id="pecas">
                 <div class="section-header">
                     <h2>Peças</h2>
-                    <button class="btn btn-primary" onclick="openModal('peca-modal')">
-                        <i class="fas fa-plus"></i>
-                        Nova Peça
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn-reload" onclick="reloadSection('pecas')" title="Recarregar peças">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="openModal('peca-modal')">
+                            <i class="fas fa-plus"></i>
+                            Nova Peça
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="filters">
@@ -285,10 +306,15 @@
             <section class="section" id="servicos">
                 <div class="section-header">
                     <h2>Serviços</h2>
-                    <button class="btn btn-primary" onclick="openModal('servico-modal')">
-                        <i class="fas fa-plus"></i>
-                        Novo Serviço
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn-reload" onclick="reloadSection('servicos')" title="Recarregar serviços">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-primary" onclick="openModal('servico-modal')">
+                            <i class="fas fa-plus"></i>
+                            Novo Serviço
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="filters">
@@ -315,6 +341,9 @@
             <section class="section" id="configuracoes">
                 <div class="section-header">
                     <h2>Configurações</h2>
+                    <button class="btn-reload" onclick="reloadSection('configuracoes')" title="Recarregar configurações">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
                 </div>
                 <div class="settings-grid">
                     <div class="settings-card">

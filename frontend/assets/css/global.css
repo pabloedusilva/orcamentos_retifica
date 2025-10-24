@@ -445,6 +445,67 @@ body {
     color: var(--text-primary);
 }
 
+/* Botão de recarregar sutil */
+.btn-reload {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.btn-reload i {
+    font-size: 14px;
+    transition: transform 0.3s ease;
+}
+
+.btn-reload:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-300);
+    color: var(--text-primary);
+}
+
+.btn-reload:active i,
+.btn-reload.reloading i {
+    animation: spin 0.6s linear;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Responsivo para botão de recarregar */
+@media (max-width: 768px) {
+    .btn-reload {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .btn-reload i {
+        font-size: 13px;
+    }
+    
+    /* Ocultar texto em telas muito pequenas, manter apenas o ícone */
+    .section-header > div {
+        flex-wrap: nowrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .btn-reload {
+        padding: 8px;
+        min-width: 36px;
+    }
+}
+
 /* Settings (Configurações) */
 .settings-grid {
     display: grid;

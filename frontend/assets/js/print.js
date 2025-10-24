@@ -383,62 +383,141 @@
   }
 
   async function shareOrcamentoWhatsApp() {
-    const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
+    const orcamentoId = getPreviewOrcamentoId(); 
+    if (!orcamentoId) return;
+    
     const S = getAppState();
-    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
+    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); 
+    if (!orcamento) return;
+    
     const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const selected = getSelectedVias();
-    if (!selected.length) { showAlert('Selecione pelo menos 1 via para compartilhar.', { title: 'Atenção' }); return; }
+    
+    if (!selected.length) { 
+      showAlert('Selecione pelo menos 1 via para compartilhar.', { title: 'Atenção' }); 
+      return; 
+    }
+
+    // Verificar se o cliente tem telefone
+    if (!cliente || !cliente.telefone) {
+      showAlert('Cliente sem telefone cadastrado. Adicione um número para compartilhar.', { title: 'Atenção' });
+      return;
+    }
+
     try {
+      // Mostrar loading
+      const loadingMsg = document.createElement('div');
+      loadingMsg.id = 'whatsapp-loading';
+      loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:white;padding:30px 50px;border-radius:12px;z-index:100000;font-size:16px;text-align:center;';
+      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Gerando PDF...';
+      document.body.appendChild(loadingMsg);
+
       await preloadCompanyLogo();
-      const { jsPDF } = window.jspdf; const pdf = new jsPDF('p','mm','a4');
-      const margin = 10; const pageWidth = 210; const pageHeight = 297; const contentWidth = pageWidth - margin*2;
+      const { jsPDF } = window.jspdf; 
+      const pdf = new jsPDF('p','mm','a4');
+      const margin = 10; 
+      const pageWidth = 210; 
+      const pageHeight = 297; 
+      const contentWidth = pageWidth - margin*2;
+      
+      // Gerar PDF com as vias selecionadas
       for (const via of selected) {
         const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
         const wrapper = document.createElement('div');
-        wrapper.style.position = 'absolute'; wrapper.style.left = '-9999px'; wrapper.style.top = '0'; wrapper.style.width = '210mm'; wrapper.style.backgroundColor = '#ffffff';
+        wrapper.style.position = 'absolute'; 
+        wrapper.style.left = '-9999px'; 
+        wrapper.style.top = '0'; 
+        wrapper.style.width = '210mm'; 
+        wrapper.style.backgroundColor = '#ffffff';
         wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
         document.body.appendChild(wrapper);
+        
         await preloadImagesInElement(wrapper);
-        const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
+        
+        const canvas = await html2canvas(wrapper, { 
+          scale: 2, 
+          useCORS: true, 
+          allowTaint: true, 
+          backgroundColor: '#ffffff', 
+          logging: false, 
+          width: wrapper.scrollWidth, 
+          height: wrapper.scrollHeight 
+        });
+        
         document.body.removeChild(wrapper);
+        
         const imgData = canvas.toDataURL('image/png', 0.95);
         const imgHeight = (canvas.height * contentWidth) / canvas.width;
         let heightLeft = imgHeight;
         let position = margin;
+        
         pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
         heightLeft -= (pageHeight - margin*2);
+        
         while (heightLeft > 0) {
           pdf.addPage();
-          position = margin - (imgHeight - heightLeft) + 0.1; // pequeno ajuste para evitar linhas negras
+          position = margin - (imgHeight - heightLeft) + 0.1;
           pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
           heightLeft -= (pageHeight - margin*2);
         }
+        
         if (via !== selected[selected.length-1]) pdf.addPage();
       }
-      const id = getPreviewOrcamentoId() || 'orcamento';
-      const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+      
+      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Salvando PDF...';
+      
+      // Preparar nome do arquivo
+      const clienteNome = cliente.nome.replace(/[^a-zA-Z0-9]/g, '_');
       const viasSlug = selected.join('-');
-      const fileName = `orcamento-${clienteNome}-${id}-${viasSlug}.pdf`;
+      const fileName = `orcamento-${clienteNome}-${orcamentoId}-${viasSlug}.pdf`;
+      
+      // Fazer upload do PDF para o servidor
       const pdfBlob = pdf.output('blob');
       const serverUrl = await uploadPdfToServer(pdfBlob, fileName);
+      
+      // Preparar mensagem do WhatsApp
       const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
       const viasLabel = selected.map(v => viaNames[v]).join(', ');
-      const message = `Olá ${cliente ? cliente.nome : 'Cliente'}! Segue o orçamento #${id} (Vias: ${viasLabel}). Você pode visualizar acessando: ${serverUrl}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+      const clienteNomeCompleto = cliente.nome;
+      const message = `Olá ${clienteNomeCompleto}! Segue o orçamento #${orcamentoId} (Vias: ${viasLabel}).\n\nVocê pode visualizar acessando:\n${serverUrl}`;
+      
+      // Limpar telefone e abrir WhatsApp
+      const telefoneRaw = cliente.telefone.replace(/\D/g,'');
+      const whatsappUrl = `https://wa.me/${telefoneRaw}?text=${encodeURIComponent(message)}`;
+      
+      document.body.removeChild(loadingMsg);
+      window.open(whatsappUrl, '_blank');
+      
     } catch (error) {
+      console.error('Erro ao compartilhar no WhatsApp:', error);
+      const loadingEl = document.getElementById('whatsapp-loading');
+      if (loadingEl) document.body.removeChild(loadingEl);
       showAlert('Erro ao compartilhar no WhatsApp. Tente novamente.', { title: 'Erro' });
     }
   }
 
   async function uploadPdfToServer(pdfBlob, fileName) {
     try {
-      // Simulação – substituir por chamada real quando existir backend
       const formData = new FormData();
       formData.append('pdf', pdfBlob, fileName);
-      formData.append('overwrite', 'true');
-      const ts = Date.now();
-      return `https://seudominio.com/pdfs/${fileName}?v=${ts}`;
+      
+      const token = window.api && window.api.getToken ? window.api.getToken() : null;
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const response = await fetch(`${window.api.API_BASE}/api/v1/files/pdf`, {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao fazer upload do PDF');
+      }
+      
+      const data = await response.json();
+      // Retornar URL completa do servidor
+      return `${window.api.API_BASE}${data.url}`;
     } catch (e) {
       console.error('Erro ao fazer upload do PDF:', e);
       throw e;

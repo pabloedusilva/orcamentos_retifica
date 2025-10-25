@@ -43,7 +43,7 @@ model Configuracoes {
   cep           String?  @db.VarChar(10)
   logoDataUrl   String?  @db.LongText
   logoPreset    String?  @db.VarChar(10)
-  selectedLogo  String?  @db.VarChar(255)
+  selectedLogo  String?  @db.LongText // Alterado para LongText para suportar DataURLs
   uploadedLogos String?  @db.LongText // JSON array de DataURLs
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

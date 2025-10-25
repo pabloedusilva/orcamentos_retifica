@@ -65,7 +65,7 @@ if (isDev) app.use(morgan('dev'));
 // Rate limit (basic) for auth and API
 const limiter = rateLimit({ 
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // 500 requests per window
+  max: 1000, // 1000 requests per window (aumentado para uso normal)
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -102,10 +102,12 @@ app.use('/api/v1/auth/login', authLimiter);
 // General rate limit for all frontend routes
 const frontendLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 page loads per minute
+  max: 500, // 500 page loads per minute (aumentado significativamente)
   message: 'Too many requests, please slow down.',
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: true // Não conta requisições que falharam (404, 500, etc)
 });
 app.use(['/', '/login'], frontendLimiter);
 

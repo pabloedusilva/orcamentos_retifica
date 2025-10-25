@@ -254,14 +254,17 @@
             <ul>
               <li>Orçamento válido até ${validadeFormatada}</li>
               <li>Preços sujeitos a alteração</li>
-              <li>Garantia: 90 dias peças, 6 meses serviços</li>
+              <li>Peças não fornecidas pela oficina (cliente deve fornecer)</li>
               <li>Pagamento: 50% aprovação + 50% retirada</li>
             </ul>
           </div>
           <div class="footer-contact"><h4>Contato</h4><div class="contact-grid">
-            <div class="contact-item"><i class="fas fa-phone"></i><span>(11) 3456-7890</span></div>
-            <div class="contact-item"><i class="fas fa-whatsapp"></i><span>(11) 99999-9999</span></div>
-            <div class="contact-item"><i class="fas fa-envelope"></i><span>contato@retificapro.com.br</span></div>
+            <div class="contact-item">
+              <i class="fab fa-whatsapp"></i>
+              <i class="fas fa-phone"></i>
+              <span>${c.telefone || '(11) 3456-7890'}</span>
+            </div>
+            <div class="contact-item"><i class="fas fa-envelope"></i><span>${c.email || 'contato@janioretifica.com'}</span></div>
           </div></div>
           <div class="autorizacao-footer">AUTORIZO A FIRMA EFETUAR OS SERVIÇOS RELACIONADOS NESTA NOTA.</div>
         </div>` : ''}
@@ -362,24 +365,6 @@
     document.querySelectorAll('.btn-via').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.querySelector(`.btn-via[onclick="switchViaPreview('${tipoVia}')"]`);
     if (activeBtn) activeBtn.classList.add('active');
-  }
-
-  function sendOrcamentoEmailFromPreview() {
-    const id = getPreviewOrcamentoId(); if (!id) return;
-    const S = getAppState();
-    const orcamento = S.orcamentos.find(o => String(o.id) === String(id)); if (!orcamento) return;
-    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-    const selected = getSelectedVias();
-    const subject = encodeURIComponent(`Orçamento #${orcamento.id} - Retífica`);
-    let bodyText = '';
-    if (selected.length) {
-      const viaNames = { vendedor: 'Vendedor', cliente: 'Cliente', funcionarios: 'Funcionários' };
-      bodyText += `Vias selecionadas: ${selected.map(v => viaNames[v]).join(', ')}\n\n`;
-    }
-    bodyText += buildOrcamentoText(orcamento);
-    const body = encodeURIComponent(bodyText);
-    const to = cliente?.email ? encodeURIComponent(cliente.email) : '';
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   }
 
   async function shareOrcamentoWhatsApp() {
@@ -526,7 +511,7 @@
     }
   }
 
-  async function sendOrcamentoEmail() {
+  async function printViaPDF() {
     const orcamentoId = getPreviewOrcamentoId(); 
     if (!orcamentoId) return;
     
@@ -538,24 +523,44 @@
     const selected = getSelectedVias();
     
     if (!selected.length) { 
-      showAlert('Selecione pelo menos 1 via para enviar.', { title: 'Atenção' }); 
+      showAlert('Selecione pelo menos 1 via para baixar.', { title: 'Atenção' }); 
       return; 
-    }
-
-    // Verificar se o cliente tem e-mail
-    if (!cliente || !cliente.email) {
-      showAlert('Cliente sem e-mail cadastrado. Adicione um e-mail para enviar.', { title: 'Atenção' });
-      return;
     }
 
     try {
       // Mostrar loading
       const loadingMsg = document.createElement('div');
-      loadingMsg.id = 'email-loading';
+      loadingMsg.id = 'pdf-download-loading';
       loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:white;padding:30px 50px;border-radius:12px;z-index:100000;font-size:16px;text-align:center;';
       loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Gerando PDF...';
       document.body.appendChild(loadingMsg);
 
+      // Prefer server-side PDF if API is available
+      try {
+        if (window.api && api.API_BASE) {
+          const token = api.getToken();
+          const url = `${api.API_BASE}/api/v1/orcamentos/${orcamento.id}/pdf`;
+          const res = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+          if (res.ok) {
+            loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Baixando arquivo...';
+            
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            const fileUrl = URL.createObjectURL(blob);
+            a.href = fileUrl;
+            a.download = `orcamento-${(cliente?cliente.nome:'cliente').replace(/[^a-zA-Z0-9]/g,'_')}-${orcamento.id}.pdf`;
+            document.body.appendChild(a); 
+            a.click(); 
+            document.body.removeChild(a);
+            URL.revokeObjectURL(fileUrl);
+            
+            document.body.removeChild(loadingMsg);
+            return; // done
+          }
+        }
+      } catch (e) { /* fallback to client-side */ }
+
+      // Fallback: gerar PDF no cliente
       await preloadCompanyLogo();
       const { jsPDF } = window.jspdf; 
       const pdf = new jsPDF('p','mm','a4');
@@ -564,7 +569,6 @@
       const pageHeight = 297; 
       const contentWidth = pageWidth - margin*2;
       
-      // Gerar PDF com as vias selecionadas
       for (const via of selected) {
         const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
         const wrapper = document.createElement('div');
@@ -592,127 +596,37 @@
         
         const imgData = canvas.toDataURL('image/png', 0.95);
         const imgHeight = (canvas.height * contentWidth) / canvas.width;
-        let heightLeft = imgHeight;
+        let heightLeft = imgHeight; 
         let position = margin;
         
         pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
         heightLeft -= (pageHeight - margin*2);
         
         while (heightLeft > 0) {
-          pdf.addPage();
           position = margin - (imgHeight - heightLeft) + 0.1;
+          pdf.addPage();
           pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
           heightLeft -= (pageHeight - margin*2);
         }
         
         if (via !== selected[selected.length-1]) pdf.addPage();
       }
+
+      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Salvando arquivo...';
       
-      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Salvando PDF...';
-      
-      // Preparar nome do arquivo
-      const clienteNome = cliente.nome.replace(/[^a-zA-Z0-9]/g, '_');
+      const id = getPreviewOrcamentoId() || 'orcamento'; 
+      const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
       const viasSlug = selected.join('-');
-      const fileName = `orcamento-${clienteNome}-${orcamentoId}-${viasSlug}.pdf`;
-      
-      // Fazer upload do PDF para o servidor
-      const pdfBlob = pdf.output('blob');
-      const uploadResult = await uploadPdfToServer(pdfBlob, fileName);
-      
-      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Enviando e-mail...';
-      
-      // Enviar e-mail via API
-      const token = window.api && window.api.getToken ? window.api.getToken() : null;
-      const emailResponse = await fetch(`${window.api.API_BASE}/api/v1/email/send-orcamento`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          clienteEmail: cliente.email,
-          clienteNome: cliente.nome,
-          orcamentoId: orcamentoId,
-          pdfPath: uploadResult.path,
-          pdfUrl: uploadResult.url
-        })
-      });
-      
-      const emailData = await emailResponse.json();
+      pdf.save(`orcamento-${clienteNome}-${id}-${viasSlug}.pdf`);
       
       document.body.removeChild(loadingMsg);
       
-      if (emailResponse.ok && emailData.success) {
-        showAlert(`E-mail enviado com sucesso para ${cliente.email}!`, { title: 'Sucesso' });
-      } else {
-        throw new Error(emailData.error || 'Erro ao enviar e-mail');
-      }
-      
     } catch (error) {
-      console.error('Erro ao enviar e-mail:', error);
-      const loadingEl = document.getElementById('email-loading');
+      console.error('Erro ao gerar PDF:', error);
+      const loadingEl = document.getElementById('pdf-download-loading');
       if (loadingEl) document.body.removeChild(loadingEl);
       
-      const errorMessage = error.message || 'Erro ao enviar e-mail. Tente novamente.';
-      showAlert(errorMessage, { title: 'Erro' });
-    }
-  }
-
-  async function printViaPDF() {
-    try {
-      const orcamentoId = getPreviewOrcamentoId(); if (!orcamentoId) return;
-      const S = getAppState();
-      const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); if (!orcamento) return;
-      const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-      const selected = getSelectedVias();
-      if (!selected.length) { showAlert('Selecione pelo menos 1 via para baixar.', { title: 'Atenção' }); return; }
-      // Prefer server-side PDF if API is available
-      try {
-        if (window.api && api.API_BASE) {
-          const token = api.getToken();
-          const url = `${api.API_BASE}/api/v1/orcamentos/${orcamento.id}/pdf`;
-          const res = await fetch(url, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-          if (res.ok) {
-            const blob = await res.blob();
-            const a = document.createElement('a');
-            const fileUrl = URL.createObjectURL(blob);
-            a.href = fileUrl;
-            a.download = `orcamento-${(cliente?cliente.nome:'cliente').replace(/[^a-zA-Z0-9]/g,'_')}-${orcamento.id}.pdf`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            URL.revokeObjectURL(fileUrl);
-            return; // done
-          }
-        }
-      } catch (e) { /* fallback to client-side */ }
-      const { jsPDF } = window.jspdf; const pdf = new jsPDF('p','mm','a4');
-      const margin = 10; const pageWidth = 210; const pageHeight = 297; const contentWidth = pageWidth - margin*2;
-      for (const via of selected) {
-        const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
-        const wrapper = document.createElement('div');
-        wrapper.style.position='absolute'; wrapper.style.left='-9999px'; wrapper.style.top='0'; wrapper.style.width='210mm'; wrapper.style.backgroundColor='#ffffff';
-        wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
-        document.body.appendChild(wrapper);
-        await preloadImagesInElement(wrapper);
-        const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
-        document.body.removeChild(wrapper);
-        const imgData = canvas.toDataURL('image/png', 0.95);
-        const imgHeight = (canvas.height * contentWidth) / canvas.width;
-        let heightLeft = imgHeight; let position = margin;
-        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-        heightLeft -= (pageHeight - margin*2);
-        while (heightLeft > 0) {
-          position = margin - (imgHeight - heightLeft) + 0.1; // ajuste anti-linha
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-          heightLeft -= (pageHeight - margin*2);
-        }
-        if (via !== selected[selected.length-1]) pdf.addPage();
-      }
-  const id = getPreviewOrcamentoId() || 'orcamento'; const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-  const viasSlug = selected.join('-');
-  pdf.save(`orcamento-${clienteNome}-${id}-${viasSlug}.pdf`);
-    } catch (e) {
-  showAlert('Erro ao gerar impressão. Tente novamente.', { title: 'Erro' });
+      showAlert('Erro ao gerar PDF. Tente novamente.', { title: 'Erro' });
     }
   }
 
@@ -1559,7 +1473,7 @@
   }
 
   // Expose
-  const api = { getPreviewOrcamentoId, getCurrentViaType, convertLocalImageToBase64Safe, replaceImageWithPlaceholder, preloadCompanyLogo, showImageFallbackNotification, generateOrcamentoPreview, generateAllVias, detectDevice, preloadImagesInElement, buildOrcamentoText, printOrcamento, switchViaPreview, sendOrcamentoEmailFromPreview, shareOrcamentoWhatsApp, sendOrcamentoEmail, uploadPdfToServer, printViaPDF, getMobilePrintStyles, getInlineStyles, printDocument, showPrintOptions, tryDirectPrint };
+  const api = { getPreviewOrcamentoId, getCurrentViaType, convertLocalImageToBase64Safe, replaceImageWithPlaceholder, preloadCompanyLogo, showImageFallbackNotification, generateOrcamentoPreview, generateAllVias, detectDevice, preloadImagesInElement, buildOrcamentoText, printOrcamento, switchViaPreview, shareOrcamentoWhatsApp, uploadPdfToServer, printViaPDF, getMobilePrintStyles, getInlineStyles, printDocument, showPrintOptions, tryDirectPrint };
   G.Print = api;
   Object.assign(G, api);
   

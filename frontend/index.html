@@ -462,8 +462,8 @@
                         <input type="text" name="nome" required>
                     </div>
                     <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" name="email" required>
+                        <label>Email <span style="color: #888; font-weight: normal; font-size: 0.9em;">(opcional)</span></label>
+                        <input type="email" name="email">
                     </div>
                     <div class="form-group">
                         <label>Telefone</label>
@@ -678,16 +678,16 @@
                         </button>
                     </div>
                     <!-- Seleção de vias para ações (imprimir/compartilhar/download) -->
-                    <div class="via-actions-select" aria-label="Vias para ações" style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; font-size:12px;">
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <div class="via-actions-select" aria-label="Vias para ações">
+                        <label>
                             <input type="checkbox" id="via-select-vendedor" checked />
                             <span>Vendedor</span>
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <label>
                             <input type="checkbox" id="via-select-cliente" checked />
                             <span>Cliente</span>
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <label>
                             <input type="checkbox" id="via-select-funcionarios" checked />
                             <span>Funcionários</span>
                         </label>
@@ -696,9 +696,6 @@
                 <!-- Direita: ações -->
                 <div class="print-actions minimal">
                     <div class="action-separator"></div>
-                    <button class="icon-btn" onclick="sendOrcamentoEmail()" title="Enviar por e-mail">
-                        <i class="fas fa-envelope"></i>
-                    </button>
                     <button class="icon-btn whatsapp-btn" onclick="shareOrcamentoWhatsApp()" title="Compartilhar no WhatsApp">
                         <i class="fab fa-whatsapp"></i>
                     </button>

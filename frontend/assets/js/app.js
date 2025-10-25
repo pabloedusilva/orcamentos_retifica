@@ -11,7 +11,7 @@ let state = {
         nome: 'Janio Retífica',
         endereco: 'Rua das Oficinas, 123 - Centro - São Paulo/SP',
         telefone: '(11) 3456-7890',
-        email: 'contato@retificapro.com.br',
+    email: 'pabloff.621.621@gmail.com',
         cnpj: '12.345.678/0001-90',
         cep: '01234-567',
         logoDataUrl: '',
@@ -494,8 +494,13 @@ function populateSettingsForm() {
     cep.value = state.company.cep || '';
 
     // Username já foi carregado do banco pelo loadUserInfoFromDatabase()
-    // Preview do logo
-    updateLogoPreview();
+    // Preview do logo (não recarregar do banco pois já foi carregado por loadSettingsFromDatabase)
+    updateLogoPreview(true);
+    
+    // Destacar preset ativo do banco de dados
+    if (state.company.logoPreset) {
+        highlightPreset(state.company.logoPreset);
+    }
 
     // Handlers simples de mudança
     const onChange = () => {
@@ -508,7 +513,7 @@ function populateSettingsForm() {
             cnpj: cnpj.value,
             cep: cep.value
         };
-        updateLogoPreview();
+        updateLogoPreview(true); // true = não recarregar do banco
         saveToStorage();
     };
     [nome, endereco, telefone, email, cnpj, cep].forEach(inp => inp.addEventListener('input', onChange));
@@ -535,7 +540,7 @@ function populateSettingsForm() {
                 state.company.selectedLogo = dataUrl;
                 if (!Array.isArray(state.company.uploadedLogos)) state.company.uploadedLogos = [];
                 state.company.uploadedLogos.push(dataUrl);
-                updateLogoPreview();
+                updateLogoPreview(true); // true = não recarregar do banco
                 // Visual: upload não recebe destaque; apenas limpar presets ativos
                 document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
                 // Renderizar/atualizar miniaturas dos uploads
@@ -560,7 +565,7 @@ function populateSettingsForm() {
             nome: 'Janio Retífica',
             endereco: 'Rua das Oficinas, 123 - Centro - São Paulo/SP',
             telefone: '(11) 3456-7890',
-            email: 'contato@retificapro.com.br',
+            email: 'pabloff.621.621@gmail.com',
             cnpj: '12.345.678/0001-90',
             cep: '01234-567',
             logoDataUrl: '',
@@ -569,7 +574,7 @@ function populateSettingsForm() {
             uploadedLogos: []
         };
         document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
-        updateLogoPreview();
+        updateLogoPreview(true); // true = não recarregar do banco
         if (typeof renderUploadThumbs === 'function') renderUploadThumbs();
         saveToStorage();
     });
@@ -588,7 +593,7 @@ function populateSettingsForm() {
                 state.company.logoDataUrl = src;
                 state.company.logoPreset = id;
                 state.company.selectedLogo = id ? `preset:${id}` : '';
-                updateLogoPreview();
+                updateLogoPreview(true); // true = não recarregar do banco
                 highlightPreset(id);
                 // Seleção única: remover ativo de uploads
                 document.querySelectorAll('.logo-upload-thumb.active').forEach(el => el.classList.remove('active'));
@@ -655,7 +660,7 @@ function populateSettingsForm() {
                 state.company.logoDataUrl = dataUrl;
                 state.company.logoPreset = '';
                     state.company.selectedLogo = dataUrl;
-                updateLogoPreview();
+                updateLogoPreview(true); // true = não recarregar do banco
                 document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
                 // Seleção única: destacar esta miniatura e limpar outras
                 row.querySelectorAll('.logo-upload-thumb.active').forEach(el => el.classList.remove('active'));
@@ -673,7 +678,7 @@ function populateSettingsForm() {
                             state.company.selectedLogo = state.company.logoDataUrl || '';
                     }
                     renderUploadThumbs();
-                    updateLogoPreview();
+                    updateLogoPreview(true); // true = não recarregar do banco
                     saveToStorage();
                 }
             });
@@ -817,10 +822,24 @@ function populateSettingsForm() {
 }
 
 // Prévia simples do logo (miniatura de upload)
-function updateLogoPreview() {
+async function updateLogoPreview(skipDatabaseLoad = false) {
     const img = document.getElementById('logo-preview-img');
     const wrap = document.getElementById('logo-preview');
     if (img && wrap) {
+        // Carregar do banco de dados apenas se não for chamada durante onChange
+        if (!skipDatabaseLoad && api && api.isAuthed()) {
+            try {
+                const settings = await api.get('/api/v1/settings');
+                if (settings.logoDataUrl) {
+                    state.company.logoDataUrl = settings.logoDataUrl;
+                    state.company.logoPreset = settings.logoPreset || '';
+                    state.company.selectedLogo = settings.selectedLogo || '';
+                }
+            } catch (error) {
+                console.warn('Erro ao carregar logo do banco:', error);
+            }
+        }
+        
         if (state.company.logoDataUrl) {
             img.src = state.company.logoDataUrl;
             img.style.display = 'block';
@@ -2560,7 +2579,7 @@ function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
                         </div>
                         <div class="contact-item">
                             <i class="fas fa-envelope"></i>
-                            <span>contato@retificapro.com.br</span>
+                            <span>pabloff.621.621@gmail.com</span>
                         </div>
                     </div>
                 </div>

@@ -39,8 +39,8 @@ window.deleteCliente = window.deleteCliente || function(){};
 		container.innerHTML = state.clientes.map(cliente => `
 			<tr>
 				<td data-label="Nome">${cliente.nome}</td>
-				<td data-label="Email">${cliente.email}</td>
-				<td data-label="Telefone">${cliente.telefone}</td>
+				<td data-label="Email">${cliente.email || '-'}</td>
+				<td data-label="Telefone">${cliente.telefone || '-'}</td>
 				<td data-label="Cidade">${cliente.cidade || '-'}</td>
 				<td data-label="Ações">
 					<div class="action-buttons">
@@ -75,8 +75,8 @@ window.deleteCliente = window.deleteCliente || function(){};
 		const form = document.getElementById('cliente-form');
 		if (!form) return;
 		form.nome.value = cliente.nome;
-		form.email.value = cliente.email;
-		form.telefone.value = cliente.telefone;
+		form.email.value = cliente.email || '';
+		form.telefone.value = cliente.telefone || '';
 		form.documento.value = cliente.documento || '';
 		form.endereco.value = cliente.endereco || '';
 		form.cidade.value = cliente.cidade || '';

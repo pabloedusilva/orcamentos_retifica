@@ -326,6 +326,7 @@
                         <thead>
                             <tr>
                                 <th>Nome</th>
+                                <th>Preço</th>
                                 <th>Descrição</th>
                                 <th>Ações</th>
                             </tr>
@@ -550,6 +551,10 @@
                         <label>Nome</label>
                         <input type="text" name="nome" required>
                     </div>
+                    <div class="form-group">
+                        <label>Preço</label>
+                        <input type="number" name="preco" min="0" step="0.01" placeholder="0,00">
+                    </div>
                     <div class="form-group span-2">
                         <label class="label-optional">Descrição (Opcional)</label>
                         <textarea name="descricao" rows="3" placeholder="Opcional"></textarea>
@@ -589,7 +594,7 @@
                             <input type="date" name="data" required>
                         </div>
                         <div class="form-group span-full">
-                            <label>Validade (1 ano)</label>
+                            <label>Validade (30 dias)</label>
                             <input type="date" name="dataFinal" readonly>
                         </div>
                     </div>
@@ -616,18 +621,27 @@
                 <div class="form-section">
                     <h4>Itens do Orçamento</h4>
                     <div class="orcamento-items">
-                        <div class="item-header">
+                        <div class="orcamento-group">
+                            <h5 style="margin: 8px 0 4px; color: var(--text-secondary);">Serviços</h5>
                             <div class="item-controls">
-                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('peca')">
-                                    <i class="fas fa-wrench"></i> Adicionar Peça
-                                </button>
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('servico')">
                                     <i class="fas fa-tools"></i> Adicionar Serviço
                                 </button>
                             </div>
+                            <div id="orcamento-servicos-list">
+                                <!-- Serviços serão adicionados aqui -->
+                            </div>
                         </div>
-                        <div id="orcamento-items-list">
-                            <!-- Itens serão adicionados aqui -->
+                        <div class="orcamento-group">
+                            <h5 style="margin: 16px 0 4px; color: var(--text-secondary);">Peças fornecidas pelo cliente</h5>
+                            <div class="item-controls">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="addOrcamentoItem('peca')">
+                                    <i class="fas fa-wrench"></i> Adicionar Peça
+                                </button>
+                            </div>
+                            <div id="orcamento-pecas-list">
+                                <!-- Peças (sem preço) serão adicionadas aqui -->
+                            </div>
                         </div>
                         
                         <div class="total-section">
@@ -730,13 +744,16 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Orçamento <span id="view-orcamento-id">#</span></h3>
+                <button class="btn btn-primary" style="margin-right:8px;" onclick="startEditFromView()" title="Editar este orçamento">
+                    <i class="fas fa-edit" style="margin-right:6px;"></i>Editar
+                </button>
                 <button class="modal-close" onclick="closeModal('view-orcamento-modal')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="view-body">
                 <div class="info-card">
-                    <h4 style="margin-bottom:10px;">Cliente</h4>
+                    <h4 style="margin-bottom:10px;">Sobre o orçamento</h4>
                     <div class="info-grid">
                         <div class="info-field">
                             <div class="label">Nome</div>

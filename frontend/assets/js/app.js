@@ -5,6 +5,7 @@ let state = {
     servicos: [],
     orcamentos: [],
     currentEditId: null,
+    orcamentoModalMode: 'new', // 'new' | 'edit'
     // controle de sequência diária de IDs de orçamentos (por chave DDMMYYYY)
     lastIdByDate: {},
     company: {
@@ -26,18 +27,85 @@ let state = {
     }
 };
 
+// Live clock using WorldTimeAPI (America/Sao_Paulo)
+let worldTimeOffset = 0; // Offset entre servidor e cliente em ms
+let lastWorldTimeSync = 0;
+
+// Função para obter a data/hora atual usando World Time API
+async function getCurrentDateTime() {
+    // Re-sincronizar se passou mais de 5 minutos desde última sync
+    if (Date.now() - lastWorldTimeSync > 5 * 60 * 1000) {
+        await syncWorldTime();
+    }
+    return new Date(Date.now() + worldTimeOffset);
+}
+
+// Função síncrona para obter data atual (usa último offset conhecido)
+function getCurrentDateTimeSync() {
+    return new Date(Date.now() + worldTimeOffset);
+}
+
+// Sincronizar offset na inicialização
+async function syncWorldTime() {
+    // Try WorldTimeAPI first
+    try {
+        const res = await fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo', { cache: 'no-store' });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.datetime) {
+                const serverNow = new Date(data.datetime).getTime();
+                worldTimeOffset = serverNow - Date.now();
+                lastWorldTimeSync = Date.now();
+                return;
+            }
+        }
+        throw new Error('WorldTimeAPI response invalid');
+    } catch (e) {
+        console.warn('World Time API sync failed, trying backend /api/v1/time');
+    }
+
+    // Fallback: backend server time
+    try {
+        const apiBase = localStorage.getItem('apiBase') || '';
+        const url = apiBase ? apiBase + '/api/v1/time' : '/api/v1/time';
+        const res2 = await fetch(url, { cache: 'no-store' });
+        if (res2.ok) {
+            const data2 = await res2.json();
+            if (data2 && typeof data2.now === 'number') {
+                worldTimeOffset = data2.now - Date.now();
+                lastWorldTimeSync = Date.now();
+                return;
+            }
+        }
+        throw new Error('Backend time response invalid');
+    } catch (e2) {
+        console.warn('Backend time sync failed, using last known offset or local time');
+        // Keep existing offset if any; otherwise offset=0 (local time)
+        if (!lastWorldTimeSync) {
+            worldTimeOffset = 0;
+            lastWorldTimeSync = Date.now();
+        }
+    }
+}
+
 // Expose core globals for other modules (e.g., print.js)
 // Note: we reassign window.state again inside loadFromStorage when the object is merged
 window.state = state;
+window.getCurrentDateTimeSync = getCurrentDateTimeSync;
+window.getCurrentDateTime = getCurrentDateTime;
+// formatDate será exposto após sua declaração no final do arquivo
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
-    loadFromStorage();
-    setupEventListeners();
-    updateDashboard();
-    renderAllLists();
-    initSettingsUI();
-    initWorldTimeClock();
+    // Sincronizar com World Time API primeiro
+    syncWorldTime().then(() => {
+        loadFromStorage();
+        setupEventListeners();
+        updateDashboard();
+        renderAllLists();
+        initSettingsUI();
+        initWorldTimeClock();
+    });
     // Navegação via cards do dashboard
     const statCards = document.querySelectorAll('.stat-card[data-goto]');
     statCards.forEach(card => {
@@ -169,23 +237,23 @@ document.addEventListener('DOMContentLoaded', function() {
         fitPreviewToViewport();
     });
     
-    // Configurar data atual e validade (1 ano) no formulário de orçamento
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    // Configurar data atual e validade (30 dias) no formulário de orçamento
     const dateInput = document.querySelector('#orcamento-form input[name="data"]');
     const endDateInput = document.querySelector('#orcamento-form input[name="dataFinal"]');
     if (dateInput) {
+        const today = getCurrentDateTimeSync();
+        const todayStr = today.toISOString().split('T')[0];
         dateInput.value = todayStr;
-        // Atualiza validade
+        // Atualiza validade (+30 dias)
         const end = new Date(today);
-        end.setFullYear(end.getFullYear() + 1);
+        end.setDate(end.getDate() + 30);
         if (endDateInput) endDateInput.value = end.toISOString().split('T')[0];
-        // Recalcula validade ao alterar data
+        // Recalcula validade ao alterar data (+30 dias)
         dateInput.addEventListener('change', () => {
-            const base = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
+            const base = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : getCurrentDateTimeSync();
             base.setHours(0,0,0,0);
             const end2 = new Date(base);
-            end2.setFullYear(end2.getFullYear() + 1);
+            end2.setDate(end2.getDate() + 30);
             if (endDateInput) endDateInput.value = end2.toISOString().split('T')[0];
         });
     }
@@ -207,14 +275,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Live clock using WorldTimeAPI (America/Sao_Paulo)
 function initWorldTimeClock() {
     const timeEl = document.getElementById('clock-time');
     const dateEl = document.getElementById('clock-date');
     if (!timeEl || !dateEl) return;
-
-    let offsetMs = 0; // server - client time offset
-    let lastSync = 0;
 
     const format = (d) => {
         const hh = String(d.getHours()).padStart(2, '0');
@@ -225,24 +289,8 @@ function initWorldTimeClock() {
         return { time: `${hh}:${mm}`, date: `${dd}/${mo}/${yy}` };
     };
 
-    async function sync() {
-        try {
-            const res = await fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo', { cache: 'no-store' });
-            const data = await res.json();
-            if (data && data.datetime) {
-                const serverNow = new Date(data.datetime).getTime();
-                const localNow = Date.now();
-                offsetMs = serverNow - localNow;
-                lastSync = Date.now();
-                update();
-            }
-        } catch (e) {
-            // keep using local time if API fails
-        }
-    }
-
     function update() {
-        const now = new Date(Date.now() + offsetMs);
+        const now = getCurrentDateTimeSync();
         const { time, date } = format(now);
         timeEl.textContent = time;
         dateEl.textContent = date;
@@ -250,11 +298,13 @@ function initWorldTimeClock() {
 
     // Tick every second
     setInterval(update, 1000);
-    // Initial sync and periodic re-sync every 10 minutes
-    sync();
-    setInterval(() => {
-        // avoid hammering the API if tab is inactive
-        if (Date.now() - lastSync > 9 * 60 * 1000) sync();
+    update();
+    
+    // Re-sync every 10 minutes
+    setInterval(async () => {
+        if (Date.now() - lastWorldTimeSync > 9 * 60 * 1000) {
+            await syncWorldTime();
+        }
     }, 60 * 1000);
 }
 
@@ -266,7 +316,7 @@ function ensureLastIdMap() {
 // Gera um ID diário sequencial no formato DDMMYYYY-XX baseado na data atual
 function generateOrcamentoId() {
     ensureLastIdMap();
-    const now = new Date();
+    const now = (typeof getCurrentDateTimeSync === 'function') ? getCurrentDateTimeSync() : new Date();
     const dd = String(now.getDate()).padStart(2, '0');
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yyyy = String(now.getFullYear());
@@ -374,10 +424,15 @@ function setupEventListeners() {
     document.getElementById('search-pecas')?.addEventListener('input', filterPecas);
     document.getElementById('search-servicos')?.addEventListener('input', filterServicos);
 
-    // Fechar modal ao clicar fora
+    // Fechar modal ao clicar fora (exceto para o modal de Orçamento, que só fecha no "X")
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
-            closeModal(e.target.id);
+            const id = e.target.id;
+            if (id === 'orcamento-modal') {
+                // Não fechar ao clicar fora
+                return;
+            }
+            closeModal(id);
         }
     });
 
@@ -386,6 +441,11 @@ function setupEventListeners() {
         const openModalEl = document.querySelector('.modal.active');
         if (!openModalEl) return;
         if (e.key === 'Escape') {
+            // Modal de Orçamento não fecha com ESC; apenas no botão "X"
+            if (openModalEl.id === 'orcamento-modal') {
+                e.preventDefault();
+                return;
+            }
             e.preventDefault();
             closeModal(openModalEl.id);
         } else if (e.key === 'Tab') {
@@ -1072,31 +1132,39 @@ async function openModal(modalId) {
     if (modalId === 'orcamento-modal') {
         initClienteSearch();
         clearOrcamentoItems();
-        
-        // Restaurar título para novo orçamento e limpar campos de veículo
-        document.querySelector('#orcamento-modal h3').textContent = 'Novo Orçamento';
         const form = document.getElementById('orcamento-form');
-        const carroInput = form?.querySelector('input[name="carro"]');
-        const placaInput = form?.querySelector('input[name="placa"]');
-        const incEstInput = form?.querySelector('input[name="incEst"]');
-        if (carroInput) carroInput.value = '';
-        if (placaInput) placaInput.value = '';
-        if (incEstInput) incEstInput.value = '';
-        
-        // garantir data inicial e validade preenchidas
-        const dateInput = form?.querySelector('input[name="data"]');
-        const endDateInput = form?.querySelector('input[name="dataFinal"]');
-        if (dateInput) {
-            if (!dateInput.value) {
-                const todayStr = new Date().toISOString().split('T')[0];
+        const isEditing = state.orcamentoModalMode === 'edit' && !!state.currentEditId;
+        if (!isEditing) {
+            // NEW: reset title and fields
+            const hdr = document.querySelector('#orcamento-modal h3');
+            if (hdr) hdr.textContent = 'Novo Orçamento';
+            const carroInput = form?.querySelector('input[name="carro"]');
+            const placaInput = form?.querySelector('input[name="placa"]');
+            const incEstInput = form?.querySelector('input[name="incEst"]');
+            if (carroInput) carroInput.value = '';
+            if (placaInput) placaInput.value = '';
+            if (incEstInput) incEstInput.value = '';
+            // Data hoje e validade +30 dias
+            const dateInput = form?.querySelector('input[name="data"]');
+            const endDateInput = form?.querySelector('input[name="dataFinal"]');
+            if (dateInput) {
+                const today = getCurrentDateTimeSync();
+                const todayStr = today.toISOString().split('T')[0];
                 dateInput.value = todayStr;
+                const base = new Date(todayStr + 'T00:00:00');
+                const end = new Date(base);
+                end.setDate(end.getDate() + 30);
+                if (endDateInput) endDateInput.value = end.toISOString().split('T')[0];
+                dateInput.addEventListener('change', () => {
+                    const base2 = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : getCurrentDateTimeSync();
+                    base2.setHours(0,0,0,0);
+                    const end2 = new Date(base2);
+                    end2.setDate(end2.getDate() + 30);
+                    if (endDateInput) endDateInput.value = end2.toISOString().split('T')[0];
+                });
             }
-            const base = new Date(dateInput.value + 'T00:00:00');
-            const end = new Date(base);
-            end.setFullYear(end.getFullYear() + 1);
-            if (endDateInput && !endDateInput.value) {
-                endDateInput.value = end.toISOString().split('T')[0];
-            }
+        } else {
+            // EDIT: title will be set by editOrcamento; do not overwrite fields here
         }
         // If sidebar is open on mobile, close it to avoid covering the modal
         const sidebar = document.querySelector('.sidebar');
@@ -1126,8 +1194,11 @@ function closeModal(modalId) {
         form.reset();
     }
 
-    // Reset edit state
-    state.currentEditId = null;
+    // Reset edit state only when closing the orçamento form modal
+    if (modalId === 'orcamento-modal') {
+        state.currentEditId = null;
+        state.orcamentoModalMode = 'new';
+    }
 
     // Disparar evento de fechamento (útil para promessas de confirm)
     try {
@@ -1403,7 +1474,10 @@ async function handleClienteSubmit(e) {
                 nome: cliente.nome,
                 email: cliente.email || undefined,
                 telefone: cliente.telefone || undefined,
-                cidade: cliente.cidade || undefined
+                documento: cliente.documento || undefined,
+                endereco: cliente.endereco || undefined,
+                cidade: cliente.cidade || undefined,
+                cep: cliente.cep || undefined
             });
             state.clientes[index] = updated.cliente;
         } catch (err) {
@@ -1418,7 +1492,10 @@ async function handleClienteSubmit(e) {
                 nome: cliente.nome,
                 email: cliente.email || undefined,
                 telefone: cliente.telefone || undefined,
-                cidade: cliente.cidade || undefined
+                documento: cliente.documento || undefined,
+                endereco: cliente.endereco || undefined,
+                cidade: cliente.cidade || undefined,
+                cep: cliente.cep || undefined
             });
             state.clientes = [created.cliente, ...state.clientes.filter(c => String(c.id) !== String(cliente.id))];
         } catch (err) {
@@ -1475,6 +1552,17 @@ function composeEnderecoCompleto(endereco, numero) {
     if (!e && !n) return '';
     if (e && n) return `${e}, ${n}`;
     return e || n;
+}
+
+// Separa endereço completo em endereco e numero
+function parseEnderecoCompleto(enderecoCompleto) {
+    const str = (enderecoCompleto || '').trim();
+    if (!str) return { endereco: '', numero: '' };
+    const lastCommaIndex = str.lastIndexOf(',');
+    if (lastCommaIndex === -1) return { endereco: str, numero: '' };
+    const endereco = str.substring(0, lastCommaIndex).trim();
+    const numero = str.substring(lastCommaIndex + 1).trim();
+    return { endereco, numero };
 }
 
 // Debounce helper
@@ -1664,7 +1752,8 @@ async function handleServicoSubmit(e) {
     const servico = {
         id: state.currentEditId || Date.now(),
         nome: formData.get('nome'),
-        descricao: formData.get('descricao')
+        descricao: formData.get('descricao'),
+        preco: parseFloat(formData.get('preco')) || 0
     };
 
     if (state.currentEditId) {
@@ -1672,14 +1761,14 @@ async function handleServicoSubmit(e) {
         state.servicos[idx] = servico;
         saveToStorage();
         try {
-            const updated = await api.put(`/api/v1/servicos/${servico.id}`, { nome: servico.nome, descricao: servico.descricao || undefined });
+            const updated = await api.put(`/api/v1/servicos/${servico.id}`, { nome: servico.nome, descricao: servico.descricao || undefined, preco: servico.preco });
             state.servicos[idx] = updated.servico;
         } catch (e) { console.warn('Falha ao atualizar serviço:', e); }
     } else {
         state.servicos.push(servico);
         saveToStorage();
         try {
-            const created = await api.post('/api/v1/servicos', { nome: servico.nome, descricao: servico.descricao || undefined });
+            const created = await api.post('/api/v1/servicos', { nome: servico.nome, descricao: servico.descricao || undefined, preco: servico.preco });
             state.servicos = [created.servico, ...state.servicos.filter(s => String(s.id) !== String(servico.id))];
         } catch (e) { console.warn('Falha ao criar serviço:', e); }
     }
@@ -1693,16 +1782,26 @@ async function handleOrcamentoSubmit(e) {
     const formData = new FormData(e.target);
     const items = collectOrcamentoItems();
     if (items.length === 0) { showAlert('Adicione pelo menos um item ao orçamento', { title: 'Atenção' }); return; }
-    const subtotal = items.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    // Subtotal/Total devem considerar apenas serviços (peças são fornecidas pelo cliente)
+    const subtotal = items.filter(i => i.tipo === 'servico').reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const total = subtotal;
     // Validação: cliente selecionado
     const clienteIdRaw = formData.get('cliente');
     if (!clienteIdRaw) { showAlert('Selecione um cliente na busca', { title: 'Atenção' }); return; }
+    // Base date values
+    const dataInput = (formData.get('data') || '').toString();
+    let dataFinalInput = (formData.get('dataFinal') || '').toString();
+    if (!dataFinalInput && dataInput) {
+        const base = new Date(dataInput + 'T00:00:00');
+        base.setDate(base.getDate() + 30);
+        dataFinalInput = base.toISOString().split('T')[0];
+    }
+
     const orcamento = {
         id: state.currentEditId || generateOrcamentoId(),
         clienteId: String(clienteIdRaw),
-        data: formData.get('data'),
-        dataFinal: formData.get('dataFinal') || '',
+        data: dataInput,
+        dataFinal: dataFinalInput || '',
         observacao: (formData.get('observacao') || '').toString().trim(),
         carro: (formData.get('carro') || '').toString().trim(),
         placa: (formData.get('placa') || '').toString().trim(),
@@ -1737,30 +1836,55 @@ async function handleOrcamentoSubmit(e) {
 
 // Gerenciamento dos itens do orçamento
 function addOrcamentoItem(tipo) {
-    const container = document.getElementById('orcamento-items-list');
+    const container = document.getElementById(tipo === 'peca' ? 'orcamento-pecas-list' : 'orcamento-servicos-list');
     const itemDiv = document.createElement('div');
     itemDiv.className = 'orcamento-item';
-    
+
     let options = '';
     const items = tipo === 'peca' ? state.pecas : state.servicos;
-    
-    // Verificar se há itens disponíveis
+
+    // Verificar catálogo vazio: em modo edição, ainda permitimos adicionar a linha (com opção custom)
     if (!items || items.length === 0) {
         const tipoLabel = tipo === 'peca' ? 'peças' : 'serviços';
-        showAlert(`Nenhuma ${tipoLabel} cadastrada. Cadastre ${tipoLabel} antes de criar um orçamento.`, { 
-            title: 'Atenção' 
-        });
-        return;
+        if (state.orcamentoModalMode !== 'edit') {
+            showAlert(`Nenhuma ${tipoLabel} cadastrada. Cadastre ${tipoLabel} antes de criar um orçamento.`, { title: 'Atenção' });
+        }
+        // Continua: options ficará vazio; editOrcamento irá criar opção custom conforme necessário
     }
-    
-    items.forEach(item => {
+
+    (items || []).forEach(item => {
         const label = item.nome;
         options += `<option value="${item.id}">${label}</option>`;
     });
 
+    if (tipo === 'peca') {
+        // Peças são fornecidas pelo cliente: sem preço
+        itemDiv.innerHTML = `
+            <select class="item-select" data-tipo="${tipo}">
+                <option value="">Selecione uma peça</option>
+                ${options}
+            </select>
+            <input type="number" class="item-quantidade" placeholder="Qtd" value="1" min="1">
+            <span class="item-info" style="color: var(--text-secondary); font-size: 12px;">Fornecida pelo cliente</span>
+            <button type="button" class="remove-item" onclick="removeOrcamentoItem(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        container.appendChild(itemDiv);
+
+        const select = itemDiv.querySelector('.item-select');
+        const quantidade = itemDiv.querySelector('.item-quantidade');
+        const trigger = () => updateOrcamentoTotal();
+        select.addEventListener('change', trigger);
+        quantidade.addEventListener('input', trigger);
+        updateOrcamentoTotal();
+        return;
+    }
+
+    // Serviços: possuem preço e subtotal
     itemDiv.innerHTML = `
         <select class="item-select" data-tipo="${tipo}">
-            <option value="">Selecione ${tipo === 'peca' ? 'uma peça' : 'um serviço'}</option>
+            <option value="">Selecione um serviço</option>
             ${options}
         </select>
         <input type="number" class="item-quantidade" placeholder="Qtd" value="1" min="1">
@@ -1778,8 +1902,15 @@ function addOrcamentoItem(tipo) {
     const precoInput = itemDiv.querySelector('.item-preco');
     const subtotal = itemDiv.querySelector('.item-subtotal');
 
-    // Ao mudar o item, não há preço fixo no catálogo; mantenha o preço manual inserido
-    select.addEventListener('change', function() {
+    // Ao mudar o serviço, preencher o preço a partir do catálogo; pode ser editado na hora
+    select.addEventListener('change', function () {
+        const val = String(select.value || '');
+        if (val) {
+            const svc = state.servicos.find(s => String(s.id) === val);
+            if (svc && typeof svc.preco !== 'undefined') {
+                precoInput.value = String(Number(svc.preco) || 0);
+            }
+        }
         updateSubtotal();
     });
 
@@ -1804,31 +1935,37 @@ function removeOrcamentoItem(button) {
 
 function collectOrcamentoItems() {
     const items = [];
-    document.querySelectorAll('.orcamento-item').forEach(itemDiv => {
+    document.querySelectorAll('#orcamento-servicos-list .orcamento-item, #orcamento-pecas-list .orcamento-item').forEach(itemDiv => {
         const select = itemDiv.querySelector('.item-select');
         const quantidade = parseInt(itemDiv.querySelector('.item-quantidade').value) || 0;
-        const preco = parseFloat(itemDiv.querySelector('.item-preco').value) || 0;
+        const precoEl = itemDiv.querySelector('.item-preco');
+        const preco = precoEl ? (parseFloat(precoEl.value) || 0) : 0;
         const tipo = select.getAttribute('data-tipo');
 
-        if (select.value && quantidade > 0) {
-            const itemData = (tipo === 'peca' ? state.pecas : state.servicos).find(i => String(i.id) === String(select.value));
-            items.push({
-                tipo: tipo,
-                itemId: String(select.value),
-                nome: itemData.nome,
-                quantidade: quantidade,
-                preco: preco
-            });
+        const val = String(select.value || '');
+        if (!val || quantidade <= 0) return;
+
+        if (val.startsWith('custom:')) {
+            const nome = decodeURIComponent(val.slice(7)) || (select.options[select.selectedIndex]?.textContent || 'Item');
+            items.push({ tipo, itemId: null, nome, quantidade, preco });
+            return;
         }
+
+        const catalog = (tipo === 'peca' ? state.pecas : state.servicos);
+        const itemData = catalog.find(i => String(i.id) === val);
+        const nome = itemData ? itemData.nome : (select.options[select.selectedIndex]?.textContent || 'Item');
+        items.push({ tipo, itemId: val, nome, quantidade, preco });
     });
     return items;
 }
 
 function updateOrcamentoTotal() {
     let total = 0;
-    document.querySelectorAll('.orcamento-item').forEach(itemDiv => {
+    // Somar apenas serviços (peças são fornecidas pelo cliente e não possuem preço)
+    document.querySelectorAll('#orcamento-servicos-list .orcamento-item').forEach(itemDiv => {
         const quantidade = parseInt(itemDiv.querySelector('.item-quantidade').value) || 0;
-        const preco = parseFloat(itemDiv.querySelector('.item-preco').value) || 0;
+        const precoEl = itemDiv.querySelector('.item-preco');
+        const preco = precoEl ? (parseFloat(precoEl.value) || 0) : 0;
         total += quantidade * preco;
     });
     const subtotalEl = document.getElementById('orcamento-subtotal');
@@ -1838,7 +1975,10 @@ function updateOrcamentoTotal() {
 }
 
 function clearOrcamentoItems() {
-    document.getElementById('orcamento-items-list').innerHTML = '';
+    const s = document.getElementById('orcamento-servicos-list');
+    const p = document.getElementById('orcamento-pecas-list');
+    if (s) s.innerHTML = '';
+    if (p) p.innerHTML = '';
     updateOrcamentoTotal();
 }
 
@@ -1858,13 +1998,14 @@ function renderAllLists() {
 // Deletion is handled in section modules; keep only state/save helpers here if needed
 
 // Editar orçamento: abre modal preenchendo dados e itens
-function editOrcamento(id) {
+async function editOrcamento(id) {
     const orcamento = state.orcamentos.find(o => String(o.id) === String(id));
     if (!orcamento) return;
 
     // Sinalizar modo edição antes de abrir (para initClienteSearch pré-preencher)
+    state.orcamentoModalMode = 'edit';
     state.currentEditId = orcamento.id;
-    openModal('orcamento-modal');
+    await openModal('orcamento-modal');
 
     const form = document.getElementById('orcamento-form');
     if (!form) return;
@@ -1882,11 +2023,29 @@ function editOrcamento(id) {
         if (inputClienteBusca) inputClienteBusca.value = cliente.nome;
     }
 
-    // Datas
+    // Datas (converter para formato input YYYY-MM-DD)
+    const toInputDate = (v) => {
+        if (!v) return '';
+        try {
+            const str = String(v);
+            // If already YYYY-MM-DD format, return as-is
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+                return str;
+            }
+            // Otherwise parse as date and convert
+            const d = (v instanceof Date) ? v : new Date(str);
+            if (isNaN(d.getTime())) return '';
+            // Use local date components to avoid timezone shift
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        } catch { return ''; }
+    };
     const dataEl = form.querySelector('input[name="data"]');
     const dataFinalEl = form.querySelector('input[name="dataFinal"]');
-    if (dataEl) dataEl.value = orcamento.data || '';
-    if (dataFinalEl) dataFinalEl.value = orcamento.dataFinal || '';
+    if (dataEl) dataEl.value = toInputDate(orcamento.data);
+    if (dataFinalEl) dataFinalEl.value = toInputDate(orcamento.dataFinal);
 
     // Veículo e observação
     const carroEl = form.querySelector('input[name="carro"]');
@@ -1903,31 +2062,42 @@ function editOrcamento(id) {
     (orcamento.items || []).forEach(item => {
         // Adiciona bloco do item e preenche
         addOrcamentoItem(item.tipo);
-        const container = document.getElementById('orcamento-items-list');
+        const container = document.getElementById(item.tipo === 'peca' ? 'orcamento-pecas-list' : 'orcamento-servicos-list');
         const last = container && container.lastElementChild;
         if (!last) return;
         const select = last.querySelector('.item-select');
         const qtd = last.querySelector('.item-quantidade');
         const preco = last.querySelector('.item-preco');
 
-        // Garantir que o option exista mesmo se catálogo mudou
+        // Garantir que o option exista mesmo se catálogo mudou; fallback para opção customizada por nome
         if (select) {
-            const desiredId = item.itemId != null ? String(item.itemId) : (function(){
+            const desiredId = (function(){
+                if (item.itemId != null && String(item.itemId).trim() !== '') return String(item.itemId);
                 const catalog = item.tipo === 'peca' ? state.pecas : state.servicos;
                 const found = catalog.find(x => (x && x.nome) === item.nome);
                 return found ? String(found.id) : '';
             })();
             const exists = desiredId && Array.from(select.options).some(opt => String(opt.value) === desiredId);
-            if (!exists) {
+            if (desiredId && !exists) {
                 const opt = document.createElement('option');
-                opt.value = desiredId || '';
+                opt.value = desiredId;
                 opt.textContent = item.nome || `Item ${item.itemId}`;
                 select.appendChild(opt);
+                select.value = desiredId;
+            } else if (desiredId) {
+                select.value = desiredId;
+            } else {
+                // criar opção customizada baseada no nome do item
+                const customVal = 'custom:' + encodeURIComponent(item.nome || '');
+                const opt = document.createElement('option');
+                opt.value = customVal;
+                opt.textContent = item.nome || 'Item';
+                select.appendChild(opt);
+                select.value = customVal;
             }
-            if (desiredId) select.value = desiredId;
         }
-        if (qtd) qtd.value = String(item.quantidade || 1);
-        if (preco) preco.value = String(item.preco != null ? item.preco : 0);
+    if (qtd) qtd.value = String(item.quantidade || 1);
+    if (preco) preco.value = String(item.preco != null ? item.preco : 0);
 
         // Atualiza subtotal desse item
         const evt = new Event('input');
@@ -1963,7 +2133,7 @@ function viewOrcamento(id) {
     if (idEl) idEl.textContent = `#${orcamento.id}`;
 
     // Datas
-    const validadeIso = orcamento.dataFinal || (() => { const d = new Date(orcamento.data + 'T00:00:00'); d.setFullYear(d.getFullYear() + 1); return d.toISOString().split('T')[0]; })();
+    const validadeIso = orcamento.dataFinal || (() => { const d = new Date(orcamento.data + 'T00:00:00'); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; })();
     const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     setText('view-cliente-nome', cliente ? cliente.nome : 'Cliente não encontrado');
     setText('view-data', formatDate(orcamento.data));
@@ -1982,7 +2152,10 @@ function viewOrcamento(id) {
     // Itens
     const tbody = document.getElementById('view-itens-list');
     if (tbody) {
-        tbody.innerHTML = (orcamento.items || []).map(item => {
+        const itens = Array.isArray(orcamento.items) ? orcamento.items : [];
+        const servicos = itens.filter(i => i && i.tipo === 'servico');
+        const pecas = itens.filter(i => i && i.tipo === 'peca');
+        const servicosRows = servicos.map(item => {
             const preco = Number(item.preco) || 0;
             const qtd = Number(item.quantidade) || 1;
             const sub = qtd * preco;
@@ -1993,6 +2166,17 @@ function viewOrcamento(id) {
                 <td>R$ ${sub.toFixed(2).replace('.', ',')}</td>
             </tr>`;
         }).join('');
+        const pecasHeader = pecas.length ? `<tr><td colspan="4" style="background: var(--gray-100); color: var(--text-secondary); font-weight: 700;">Peças fornecidas pelo cliente</td></tr>` : '';
+        const pecasRows = pecas.map(item => {
+            const qtd = Number(item.quantidade) || 1;
+            return `<tr>
+                <td>${item.nome}</td>
+                <td>${qtd}</td>
+                <td>—</td>
+                <td>—</td>
+            </tr>`;
+        }).join('');
+        tbody.innerHTML = servicosRows + pecasHeader + pecasRows;
     }
 
     // Total
@@ -2005,6 +2189,8 @@ function viewOrcamento(id) {
     // Controles de status
     const modal = document.getElementById('view-orcamento-modal');
     if (modal) {
+        // armazenar id para possível ação de editar
+        modal.dataset.orcamentoId = String(orcamento.id);
         const segPend = modal.querySelector('#seg-pendente');
         const segApr = modal.querySelector('#seg-aprovado');
         const setActive = (status) => {
@@ -2017,6 +2203,16 @@ function viewOrcamento(id) {
     }
 
     openModal('view-orcamento-modal');
+}
+
+// Iniciar edição a partir do modal de visualização
+function startEditFromView() {
+    const modal = document.getElementById('view-orcamento-modal');
+    const id = modal?.dataset?.orcamentoId;
+    if (!id) return;
+    closeModal('view-orcamento-modal');
+    // pequena espera para animação/fechamento antes de abrir modal de edição
+    setTimeout(() => editOrcamento(id), 50);
 }
 
 // Função para visualizar orçamento
@@ -2236,9 +2432,26 @@ async function verifyPassword(password, hash) {
 
 // Funções utilitárias
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR');
+    if (!dateString) return '';
+    // Sempre trate como data (sem hora). Se vier com "T...", use apenas os 10 primeiros caracteres.
+    const str = String(dateString);
+    const ymd = (/^\d{4}-\d{2}-\d{2}/.exec(str)?.[0]) || str;
+    // Se já estiver no formato YYYY-MM-DD, parse como data local para evitar deslocamento de fuso.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+        const [year, month, day] = ymd.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('pt-BR');
+    }
+    // Fallback: tentar construir Date e formatar
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR');
+    return '';
 }
+// Expor formatDate globalmente
+window.formatDate = formatDate;
+// Expor ações de orçamento necessárias para botões inline
+window.editOrcamento = editOrcamento;
+window.startEditFromView = startEditFromView;
 
 // Dados de exemplo para demonstração
 function loadSampleData() { /* intentionally disabled in production */ }
@@ -2291,14 +2504,14 @@ function getCurrentOrcamentoCliente() {
 
 // Gerar HTML da pré-visualização do orçamento
 function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
-    const hoje = new Date();
+    const hoje = (typeof getCurrentDateTimeSync === 'function') ? getCurrentDateTimeSync() : new Date();
     const c = state.company || {};
     const dataFormatada = formatDate(orcamento.data);
-    // Determinar validade: usar dataFinal se existir, senão calcular +1 ano
+    // Determinar validade: usar dataFinal se existir, senão calcular +30 dias
     const validadeIso = (function() {
         if (orcamento.dataFinal) return orcamento.dataFinal;
         const base = new Date(orcamento.data + 'T00:00:00');
-        base.setFullYear(base.getFullYear() + 1);
+        base.setDate(base.getDate() + 30);
         return base.toISOString().split('T')[0];
     })();
     const validadeFormatada = formatDate(validadeIso);
@@ -2633,7 +2846,39 @@ async function loadFromBackend() {
         state.clientes = Array.isArray(cli.clientes) ? cli.clientes : [];
         state.pecas = Array.isArray(pec.pecas) ? pec.pecas : [];
         state.servicos = Array.isArray(srv.servicos) ? srv.servicos : [];
-        state.orcamentos = Array.isArray(orc.orcamentos) ? orc.orcamentos : [];
+        // Normalize backend shapes to what the UI expects
+        const normalizeTipo = (t) => {
+            if (!t) return 'servico';
+            const s = String(t).toLowerCase();
+            if (s.startsWith('pec')) return 'peca';
+            if (s.startsWith('serv')) return 'servico';
+            if (s.includes('peç')) return 'peca';
+            if (s.includes('servi')) return 'servico';
+            return s === 'peca' ? 'peca' : 'servico';
+        };
+        const toYMD = (v) => {
+            if (!v) return '';
+            const str = String(v);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            const ymd = (/^\d{4}-\d{2}-\d{2}/.exec(str)?.[0]) || str;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+            const d = new Date(str);
+            if (isNaN(d.getTime())) return '';
+            const yy = d.getFullYear();
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const dd = String(d.getDate()).padStart(2,'0');
+            return `${yy}-${mm}-${dd}`;
+        };
+        state.orcamentos = (Array.isArray(orc.orcamentos) ? orc.orcamentos : []).map(o => ({
+            ...o,
+            data: toYMD(o.data),
+            dataFinal: toYMD(o.dataFinal),
+            items: Array.isArray(o.items) ? o.items.map(it => ({
+                ...it,
+                tipo: normalizeTipo(it.tipo),
+                preco: (it.preco != null ? Number(it.preco) : 0)
+            })) : []
+        }));
         saveToStorage();
         renderAllLists();
         updateDashboard();
@@ -2673,7 +2918,40 @@ async function refreshDataFromBackend(dataTypes = ['clientes', 'pecas', 'servico
     if (dataTypes.includes('orcamentos')) {
         promises.push(
             api.get('/api/v1/orcamentos')
-                .then(resp => { state.orcamentos = Array.isArray(resp.orcamentos) ? resp.orcamentos : []; })
+                .then(resp => {
+                    const normalizeTipo = (t) => {
+                        if (!t) return 'servico';
+                        const s = String(t).toLowerCase();
+                        if (s.startsWith('pec')) return 'peca';
+                        if (s.startsWith('serv')) return 'servico';
+                        if (s.includes('peç')) return 'peca';
+                        if (s.includes('servi')) return 'servico';
+                        return s === 'peca' ? 'peca' : 'servico';
+                    };
+                    const toYMD = (v) => {
+                        if (!v) return '';
+                        const str = String(v);
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+                        const ymd = (/^\d{4}-\d{2}-\d{2}/.exec(str)?.[0]) || str;
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+                        const d = new Date(str);
+                        if (isNaN(d.getTime())) return '';
+                        const yy = d.getFullYear();
+                        const mm = String(d.getMonth()+1).padStart(2,'0');
+                        const dd = String(d.getDate()).padStart(2,'0');
+                        return `${yy}-${mm}-${dd}`;
+                    };
+                    state.orcamentos = (Array.isArray(resp.orcamentos) ? resp.orcamentos : []).map(o => ({
+                        ...o,
+                        data: toYMD(o.data),
+                        dataFinal: toYMD(o.dataFinal),
+                        items: Array.isArray(o.items) ? o.items.map(it => ({
+                            ...it,
+                            tipo: normalizeTipo(it.tipo),
+                            preco: (it.preco != null ? Number(it.preco) : 0)
+                        })) : []
+                    }));
+                })
                 .catch(err => console.warn('Falha ao atualizar orçamentos:', err))
         );
     }

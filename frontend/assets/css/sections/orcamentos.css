@@ -18,6 +18,10 @@
 .orcamento-item .remove-item:hover { background: #f8fafc; }
 .total-breakdown { margin-top: 10px; display:flex; justify-content: flex-end; gap: 16px; }
 
+/* Separador e layout para grupos de Serviços e Peças */
+.orcamento-group + .orcamento-group { border-top: 1px solid var(--border-color); margin-top: 12px; padding-top: 12px; }
+.orcamento-group .item-controls { margin: 4px 0 8px; }
+
 @media (max-width: 768px) {
 	.orcamento-item { grid-template-columns: 1fr 1fr; }
 }

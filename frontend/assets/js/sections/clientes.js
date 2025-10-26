@@ -74,12 +74,20 @@ window.deleteCliente = window.deleteCliente || function(){};
 		state.currentEditId = id;
 		const form = document.getElementById('cliente-form');
 		if (!form) return;
-		form.nome.value = cliente.nome;
+		form.nome.value = cliente.nome || '';
 		form.email.value = cliente.email || '';
 		form.telefone.value = cliente.telefone || '';
 		form.documento.value = cliente.documento || '';
-		form.endereco.value = cliente.endereco || '';
+		
+		// Separar endereco em endereco e numero
+		const parsed = typeof parseEnderecoCompleto === 'function' 
+			? parseEnderecoCompleto(cliente.endereco) 
+			: { endereco: cliente.endereco || '', numero: '' };
+		form.endereco.value = parsed.endereco;
+		if (form.numero) form.numero.value = parsed.numero;
+		
 		form.cidade.value = cliente.cidade || '';
+		form.cep.value = cliente.cep || '';
 		const h = document.querySelector('#cliente-modal h3');
 		if (h) h.textContent = 'Editar Cliente';
 		if (typeof openModal === 'function') openModal('cliente-modal');

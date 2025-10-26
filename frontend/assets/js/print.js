@@ -116,13 +116,13 @@
 
   // HTML generators
   function generateOrcamentoPreview(orcamento, cliente, tipoVia = 'vendedor') {
-    const hoje = new Date();
+    const hoje = G.getCurrentDateTimeSync ? G.getCurrentDateTimeSync() : new Date();
     const c = (G.state && G.state.company) || {};
     const dataFormatada = G.formatDate(orcamento.data);
     const validadeIso = (function(){
       if (orcamento.dataFinal) return orcamento.dataFinal;
       const base = new Date(orcamento.data + 'T00:00:00');
-      base.setFullYear(base.getFullYear() + 1);
+      base.setDate(base.getDate() + 30);
       return base.toISOString().split('T')[0];
     })();
     const validadeFormatada = G.formatDate(validadeIso);
@@ -140,15 +140,17 @@
     } : { nome: 'Cliente não encontrado', email: 'N/A', telefone: 'N/A', documento: 'N/A', endereco: 'N/A', cidade: 'N/A' };
     const showValues = tipoVia !== 'funcionarios';
     const isClientCopy = tipoVia === 'cliente';
-    let itemsHtml = '';
+    const itens = Array.isArray(orcamento.items) ? orcamento.items : [];
+    const servicos = itens.filter(i => i && i.tipo === 'servico');
+    const pecas = itens.filter(i => i && i.tipo === 'peca');
     let subtotal = 0;
-    orcamento.items.forEach(item => {
-      const preco = Number(item.preco) || 0;
-      const qtd = Number(item.quantidade) || 1;
-      const itemSubtotal = qtd * preco;
-      subtotal += itemSubtotal;
-      if (tipoVia === 'funcionarios') {
-        itemsHtml += `
+    let servicosHtml = '';
+    let pecasHtml = '';
+    if (tipoVia === 'funcionarios') {
+      // Funcionários: separar serviços e peças, sem valores, com conferência/observações
+      servicos.forEach(item => {
+        const qtd = Number(item.quantidade) || 1;
+        servicosHtml += `
           <tr>
             <td>
               <div class="item-description">
@@ -160,8 +162,30 @@
             <td class="text-center status-checkbox">☐ OK</td>
             <td class="funcionario-obs">____________</td>
           </tr>`;
-      } else {
-        itemsHtml += `
+      });
+      pecas.forEach(item => {
+        const qtd = Number(item.quantidade) || 1;
+        pecasHtml += `
+          <tr>
+            <td>
+              <div class="item-description">
+                <div class="item-name">${item.nome}</div>
+                <span class="item-tipo tipo-${item.tipo}">FORNECIDA PELO CLIENTE</span>
+              </div>
+            </td>
+            <td class="text-center">${qtd}</td>
+            <td class="text-center status-checkbox">☐ OK</td>
+            <td class="funcionario-obs">____________</td>
+          </tr>`;
+      });
+    } else {
+      // Vendedor/Cliente: separar serviços (com valores) e peças (sem valores)
+      servicos.forEach(item => {
+        const preco = Number(item.preco) || 0;
+        const qtd = Number(item.quantidade) || 1;
+        const itemSubtotal = qtd * preco;
+        subtotal += itemSubtotal;
+        servicosHtml += `
           <tr>
             <td>
               <div class="item-description">
@@ -173,8 +197,21 @@
             <td class="text-right font-mono">R$ ${preco.toFixed(2).replace('.', ',')}</td>
             <td class="text-right font-mono">R$ ${itemSubtotal.toFixed(2).replace('.', ',')}</td>
           </tr>`;
-      }
-    });
+      });
+      pecas.forEach(item => {
+        const qtd = Number(item.quantidade) || 1;
+        pecasHtml += `
+          <tr>
+            <td>
+              <div class="item-description">
+                <div class="item-name">${item.nome}</div>
+                <span class="item-tipo tipo-${item.tipo}">FORNECIDA PELO CLIENTE</span>
+              </div>
+            </td>
+            <td class="text-center">${qtd}</td>
+          </tr>`;
+      });
+    }
     const viaTitle = { vendedor: 'VIA DO VENDEDOR', cliente: 'VIA DO CLIENTE', funcionarios: 'VIA PARA SERVIÇOS' }[tipoVia] || 'VIA DO VENDEDOR';
     return `
       <div class="orcamento-document via-${tipoVia}">
@@ -221,25 +258,51 @@
             ${orcamento.incEst ? `<div class="cliente-field"><div class="field-label">Inc. Est. / CIC</div><div class="field-value">${orcamento.incEst}</div></div>` : ''}
           </div></div>
         </div>` : ''}
+        ${tipoVia === 'funcionarios' ? `
         <div class="itens-section">
-          <h3 class="section-title">${tipoVia === 'funcionarios' ? 'Peças e Serviços a Executar' : 'Itens'}</h3>
+          <h3 class="section-title">Serviços a Executar</h3>
           <table class="itens-table"><thead><tr>
             <th>Descrição</th><th class="text-center">Qtd</th>
-            ${showValues ? '<th class="text-right">Unit.</th>' : '<th class="text-center">Conferido</th>'}
-            ${showValues ? '<th class="text-right">Total</th>' : '<th class="text-center">Observações</th>'}
-          </tr></thead><tbody>${itemsHtml}</tbody></table>
-          ${showValues ? `
+            <th class="text-center">Conferido</th>
+            <th class="text-center">Observações</th>
+          </tr></thead><tbody>${servicosHtml}</tbody></table>
+        </div>
+        ${pecasHtml ? `
+        <div class="itens-section">
+          <h3 class="section-title">Peças fornecidas pelo cliente</h3>
+          <table class="itens-table"><thead><tr>
+            <th>Descrição</th><th class="text-center">Qtd</th>
+            <th class="text-center">Conferido</th>
+            <th class="text-center">Observações</th>
+          </tr></thead><tbody>${pecasHtml}</tbody></table>
+        </div>` : ''}
+        <div class="funcionarios-notes"><h4>Anotações dos Serviços:</h4><div class="notes-lines">
+          <div class="note-line"></div><div class="note-line"></div><div class="note-line"></div>
+          <div class="note-line"></div><div class="note-line"></div><div class="note-line"></div><div class="note-line"></div>
+        </div></div>
+        ` : `
+        <div class="itens-section">
+          <h3 class="section-title">Serviços</h3>
+          <table class="itens-table"><thead><tr>
+            <th>Descrição</th><th class="text-center">Qtd</th>
+            <th class="text-right">Unit.</th>
+            <th class="text-right">Total</th>
+          </tr></thead><tbody>${servicosHtml}</tbody></table>
           <div class="totals-section"><div class="totals-card">
             <table class="totals-table">
               <tr><td class="total-label">Subtotal:</td><td class="total-value font-mono">R$ ${(Number(orcamento.subtotal) || subtotal).toFixed(2).replace('.', ',')}</td></tr>
-              <tr class="total-row"><td class="total-label">TOTAL:</td><td class="total-value font-mono">R$ ${(Number(orcamento.total) || 0).toFixed(2).replace('.', ',')}</td></tr>
+              <tr class="total-row"><td class="total-label">TOTAL:</td><td class="total-value font-mono">R$ ${(Number(orcamento.total) || (subtotal || 0)).toFixed(2).replace('.', ',')}</td></tr>
             </table>
-          </div></div>` : `
-          <div class="funcionarios-notes"><h4>Anotações dos Serviços:</h4><div class="notes-lines">
-            <div class="note-line"></div><div class="note-line"></div><div class="note-line"></div>
-            <div class="note-line"></div><div class="note-line"></div><div class="note-line"></div><div class="note-line"></div>
-          </div></div>`}
+          </div></div>
         </div>
+        ${pecasHtml ? `
+        <div class="itens-section">
+          <h3 class="section-title">Peças fornecidas pelo cliente</h3>
+          <table class="itens-table"><thead><tr>
+            <th>Descrição</th><th class="text-center">Qtd</th>
+          </tr></thead><tbody>${pecasHtml}</tbody></table>
+        </div>` : ''}
+        `}
         ${orcamento.observacao && tipoVia !== 'funcionarios' ? `
         <div class="itens-section"><h3 class="section-title">Observação</h3><div class="cliente-card" style="padding:16px;">
           <div style="white-space:pre-wrap; color: var(--text-secondary);">${(orcamento.observacao || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
@@ -322,23 +385,37 @@
   function buildOrcamentoText(orcamento) {
   const S = getAppState();
   const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-    const validadeIso = orcamento.dataFinal || (()=>{ const d = new Date(orcamento.data + 'T00:00:00'); d.setFullYear(d.getFullYear()+1); return d.toISOString().split('T')[0]; })();
+    const validadeIso = orcamento.dataFinal || (()=>{ const d = new Date(orcamento.data + 'T00:00:00'); d.setDate(d.getDate()+30); return d.toISOString().split('T')[0]; })();
     const linhas = [];
     linhas.push(`Orçamento #${orcamento.id}`);
     linhas.push(`Cliente: ${cliente ? cliente.nome : 'N/I'}`);
   linhas.push(`Data: ${G.formatDate ? G.formatDate(orcamento.data) : new Date(orcamento.data).toLocaleDateString('pt-BR')}`);
   linhas.push(`Validade: ${G.formatDate ? G.formatDate(validadeIso) : new Date(validadeIso).toLocaleDateString('pt-BR')}`);
     linhas.push('');
-    linhas.push('Itens:');
-    orcamento.items.forEach(i => {
-      const preco = Number(i.preco) || 0;
-      const qtd = Number(i.quantidade) || 1;
-      const sub = (qtd * preco).toFixed(2).replace('.', ',');
-      linhas.push(`- ${i.nome} | Qtd: ${qtd} | Unit: R$ ${preco.toFixed(2).replace('.', ',')} | Sub: R$ ${sub}`);
-    });
+    const itens = Array.isArray(orcamento.items) ? orcamento.items : [];
+    const servicos = itens.filter(i => i && i.tipo === 'servico');
+    const pecas = itens.filter(i => i && i.tipo === 'peca');
+    if (servicos.length) {
+      linhas.push('Serviços:');
+      servicos.forEach(i => {
+        const preco = Number(i.preco) || 0;
+        const qtd = Number(i.quantidade) || 1;
+        const sub = (qtd * preco).toFixed(2).replace('.', ',');
+        linhas.push(`- ${i.nome} | Qtd: ${qtd} | Unit: R$ ${preco.toFixed(2).replace('.', ',')} | Sub: R$ ${sub}`);
+      });
+      linhas.push('');
+    }
+    if (pecas.length) {
+      linhas.push('Peças fornecidas pelo cliente:');
+      pecas.forEach(i => {
+        const qtd = Number(i.quantidade) || 1;
+        linhas.push(`- ${i.nome} | Qtd: ${qtd}`);
+      });
+      linhas.push('');
+    }
     linhas.push('');
     if (orcamento.observacao) { linhas.push('Observação:'); linhas.push(orcamento.observacao); linhas.push(''); }
-    const total = Number(orcamento.total) || 0;
+  const total = Number(orcamento.total) || 0;
     linhas.push(`Total: R$ ${total.toFixed(2).replace('.', ',')}`);
     return linhas.join('\n');
   }

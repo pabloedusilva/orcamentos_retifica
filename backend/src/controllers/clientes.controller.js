@@ -5,7 +5,10 @@ const clienteSchema = z.object({
   nome: z.string().min(1),
   email: z.string().email().optional().or(z.literal('')),
   telefone: z.string().optional().or(z.literal('')),
-  cidade: z.string().optional().or(z.literal(''))
+  documento: z.string().optional().or(z.literal('')),
+  endereco: z.string().optional().or(z.literal('')),
+  cidade: z.string().optional().or(z.literal('')),
+  cep: z.string().optional().or(z.literal(''))
 });
 
 async function list(req, res) {

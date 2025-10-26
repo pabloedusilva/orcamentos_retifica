@@ -17,7 +17,7 @@ window.filterServicos = window.filterServicos || function(){};
 		if (state.servicos.length === 0) {
 			container.innerHTML = `
 				<tr>
-					<td colspan="3" class="empty-state">
+					<td colspan="4" class="empty-state">
 						<i class="fas fa-tools"></i>
 						<h3>Nenhum serviço cadastrado</h3>
 						<p>Clique em "Novo Serviço" para começar</p>
@@ -29,6 +29,7 @@ window.filterServicos = window.filterServicos || function(){};
 		container.innerHTML = state.servicos.map(servico => `
 			<tr>
 				<td data-label="Nome">${servico.nome}</td>
+				<td data-label="Preço">R$ ${(Number(servico.preco)||0).toFixed(2).replace('.', ',')}</td>
 				<td data-label="Descrição">${servico.descricao || '-'}</td>
 				<td data-label="Ações">
 					<div class="action-buttons">
@@ -62,8 +63,9 @@ window.filterServicos = window.filterServicos || function(){};
 		state.currentEditId = id;
 		const form = document.getElementById('servico-form');
 		if (!form) return;
-		form.nome.value = servico.nome;
-		form.descricao.value = servico.descricao || '';
+	form.nome.value = servico.nome;
+	if (form.preco) form.preco.value = (Number(servico.preco)||0).toFixed(2);
+	form.descricao.value = servico.descricao || '';
 		const h = document.querySelector('#servico-modal h3');
 		if (h) h.textContent = 'Editar Serviço';
 		if (typeof openModal === 'function') openModal('servico-modal');

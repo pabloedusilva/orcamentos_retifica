@@ -104,7 +104,23 @@ window.deleteCliente = window.deleteCliente || function(){};
 			renderClientesImpl();
 			if (typeof updateDashboard === 'function') updateDashboard();
 		} catch (e) {
-			showAlert('Não foi possível excluir no servidor.', { title: 'Erro' });
+			const status = e && e.status;
+			const serverMsg = e && (e.data && e.data.error ? e.data.error : e.message);
+			if (status === 409) {
+				const force = await showConfirm((serverMsg || 'Cliente possui orçamentos vinculados.') + '\nDeseja excluir o cliente e TODOS os orçamentos associados?', { title: 'Excluir tudo', variant: 'danger' });
+				if (!force) return;
+				try {
+					await api.del(`/api/v1/clientes/${id}?force=1`);
+					state.clientes = state.clientes.filter(c => String(c.id) !== String(id));
+					if (typeof saveToStorage === 'function') saveToStorage();
+					renderClientesImpl();
+					if (typeof updateDashboard === 'function') updateDashboard();
+				} catch (e2) {
+					showAlert('Falha ao excluir com força: ' + (e2?.data?.error || e2?.message || ''), { title: 'Erro' });
+				}
+			} else {
+				showAlert('Não foi possível excluir no servidor.' + (serverMsg ? `\n${serverMsg}` : ''), { title: 'Erro' });
+			}
 		}
 	}
 

@@ -13,6 +13,9 @@ router.get('/', settingsController.getSettings);
 // PUT /api/v1/settings - Atualizar configurações
 router.put('/', settingsController.updateSettings);
 
+// DELETE /api/v1/settings - Limpar configurações
+router.delete('/', settingsController.clearSettings);
+
 // GET /api/v1/settings/user - Buscar dados do usuário
 router.get('/user', settingsController.getUserInfo);
 

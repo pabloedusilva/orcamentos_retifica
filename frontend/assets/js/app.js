@@ -47,40 +47,39 @@ function getCurrentDateTimeSync() {
 
 // Sincronizar offset na inicialização
 async function syncWorldTime() {
-    // Try WorldTimeAPI first
+    // 1) Tentar backend primeiro (mais confiável e local)
     try {
-        const res = await fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo', { cache: 'no-store' });
+        const apiBase = localStorage.getItem('apiBase') || '';
+        const url = apiBase ? apiBase + '/api/v1/time' : '/api/v1/time';
+        const res = await fetch(url, { cache: 'no-store' });
         if (res.ok) {
             const data = await res.json();
-            if (data && data.datetime) {
-                const serverNow = new Date(data.datetime).getTime();
+            if (data && typeof data.now === 'number') {
+                worldTimeOffset = data.now - Date.now();
+                lastWorldTimeSync = Date.now();
+                return;
+            }
+        }
+        throw new Error('Backend time response invalid');
+    } catch (_) {
+        // silencioso para evitar ruído em console
+    }
+
+    // 2) Fallback: WorldTimeAPI (externo)
+    try {
+        const res2 = await fetch('https://worldtimeapi.org/api/timezone/America/Sao_Paulo', { cache: 'no-store' });
+        if (res2.ok) {
+            const data2 = await res2.json();
+            if (data2 && data2.datetime) {
+                const serverNow = new Date(data2.datetime).getTime();
                 worldTimeOffset = serverNow - Date.now();
                 lastWorldTimeSync = Date.now();
                 return;
             }
         }
         throw new Error('WorldTimeAPI response invalid');
-    } catch (e) {
-        console.warn('World Time API sync failed, trying backend /api/v1/time');
-    }
-
-    // Fallback: backend server time
-    try {
-        const apiBase = localStorage.getItem('apiBase') || '';
-        const url = apiBase ? apiBase + '/api/v1/time' : '/api/v1/time';
-        const res2 = await fetch(url, { cache: 'no-store' });
-        if (res2.ok) {
-            const data2 = await res2.json();
-            if (data2 && typeof data2.now === 'number') {
-                worldTimeOffset = data2.now - Date.now();
-                lastWorldTimeSync = Date.now();
-                return;
-            }
-        }
-        throw new Error('Backend time response invalid');
-    } catch (e2) {
-        console.warn('Backend time sync failed, using last known offset or local time');
-        // Keep existing offset if any; otherwise offset=0 (local time)
+    } catch (_) {
+        // 3) Último recurso: manter offset anterior ou usar hora local
         if (!lastWorldTimeSync) {
             worldTimeOffset = 0;
             lastWorldTimeSync = Date.now();
@@ -616,27 +615,47 @@ function populateSettingsForm() {
     }
 
     // Botões
-    document.getElementById('settings-save')?.addEventListener('click', () => {
-        saveToStorage();
+    document.getElementById('settings-save')?.addEventListener('click', async () => {
+        // Persiste no banco de dados
+        await saveSettingsToDatabase();
         showAlert('Configurações salvas.', { title: 'Pronto' });
     });
-    document.getElementById('settings-reset')?.addEventListener('click', () => {
+    document.getElementById('settings-reset')?.addEventListener('click', async () => {
+        // Confirmação antes de limpar tudo
+        const ok = await showConfirm('Tem certeza que deseja limpar todas as configurações da empresa?', { title: 'Limpar tudo', variant: 'danger' });
+        if (!ok) return;
+        try {
+            if (api && api.isAuthed()) {
+                await api.del('/api/v1/settings');
+            }
+        } catch (e) {
+            console.warn('Falha ao limpar configurações no banco:', e);
+        }
+        // Limpar state e UI
         state.company = {
-            nome: 'Janio Retífica',
-            endereco: 'Rua das Oficinas, 123 - Centro - São Paulo/SP',
-            telefone: '(11) 3456-7890',
-            email: 'pabloff.621.621@gmail.com',
-            cnpj: '12.345.678/0001-90',
-            cep: '01234-567',
+            nome: '',
+            endereco: '',
+            telefone: '',
+            email: '',
+            cnpj: '',
+            cep: '',
             logoDataUrl: '',
             logoPreset: '',
             selectedLogo: '',
             uploadedLogos: []
         };
+    // Limpa campos do formulário (não usar optional chaining em assignment)
+    (function(){ const el = document.getElementById('settings-nome'); if (el) el.value = ''; })();
+    (function(){ const el = document.getElementById('settings-endereco'); if (el) el.value = ''; })();
+    (function(){ const el = document.getElementById('settings-telefone'); if (el) el.value = ''; })();
+    (function(){ const el = document.getElementById('settings-email'); if (el) el.value = ''; })();
+    (function(){ const el = document.getElementById('settings-cnpj'); if (el) el.value = ''; })();
+    (function(){ const el = document.getElementById('settings-cep'); if (el) el.value = ''; })();
+        // Limpa UI de logo/presets
         document.querySelectorAll('.logo-preset.active').forEach(p => p.classList.remove('active'));
-        updateLogoPreview(true); // true = não recarregar do banco
         if (typeof renderUploadThumbs === 'function') renderUploadThumbs();
-        saveToStorage();
+        updateLogoPreview(true);
+        showAlert('Configurações limpas.', { title: 'Pronto' });
     });
 
     // Presets de logo (seleção rápida)
@@ -2205,15 +2224,7 @@ function viewOrcamento(id) {
     openModal('view-orcamento-modal');
 }
 
-// Iniciar edição a partir do modal de visualização
-function startEditFromView() {
-    const modal = document.getElementById('view-orcamento-modal');
-    const id = modal?.dataset?.orcamentoId;
-    if (!id) return;
-    closeModal('view-orcamento-modal');
-    // pequena espera para animação/fechamento antes de abrir modal de edição
-    setTimeout(() => editOrcamento(id), 50);
-}
+// (removido) startEditFromView deixado de existir após retirada do botão Editar no modal de visualização
 
 // Função para visualizar orçamento
 // NOTE: Removed duplicate handleOrcamentoSubmit implementation to avoid overriding the async backend-integrated version defined earlier.
@@ -2451,7 +2462,6 @@ function formatDate(dateString) {
 window.formatDate = formatDate;
 // Expor ações de orçamento necessárias para botões inline
 window.editOrcamento = editOrcamento;
-window.startEditFromView = startEditFromView;
 
 // Dados de exemplo para demonstração
 function loadSampleData() { /* intentionally disabled in production */ }

@@ -207,9 +207,23 @@ async function updateAccount(req, res, next) {
   }
 }
 
+// DELETE /api/v1/settings - Limpar todas as configurações (reset para vazio)
+async function clearSettings(req, res, next) {
+  try {
+    // Apagar todas as configurações existentes
+    await prisma.configuracoes.deleteMany();
+    // Retornar payload vazio padrão (frontend preencherá com campos em branco)
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Error in clearSettings:', error);
+    next(error);
+  }
+}
+
 module.exports = {
   getSettings,
   updateSettings,
   getUserInfo,
-  updateAccount
+  updateAccount,
+  clearSettings
 };

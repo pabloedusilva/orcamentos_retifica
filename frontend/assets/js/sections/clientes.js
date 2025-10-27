@@ -98,29 +98,15 @@ window.deleteCliente = window.deleteCliente || function(){};
 		const ok = await showConfirm('Tem certeza que deseja excluir este cliente?', { title: 'Excluir cliente' });
 		if (!ok) return;
 		try {
-			await api.del(`/api/v1/clientes/${id}`);
+			// Força exclusão em cascata por padrão para evitar 409 e limpar orçamentos vinculados
+			await api.del(`/api/v1/clientes/${id}?force=1`);
 			state.clientes = state.clientes.filter(c => String(c.id) !== String(id));
 			if (typeof saveToStorage === 'function') saveToStorage();
 			renderClientesImpl();
 			if (typeof updateDashboard === 'function') updateDashboard();
 		} catch (e) {
-			const status = e && e.status;
 			const serverMsg = e && (e.data && e.data.error ? e.data.error : e.message);
-			if (status === 409) {
-				const force = await showConfirm((serverMsg || 'Cliente possui orçamentos vinculados.') + '\nDeseja excluir o cliente e TODOS os orçamentos associados?', { title: 'Excluir tudo', variant: 'danger' });
-				if (!force) return;
-				try {
-					await api.del(`/api/v1/clientes/${id}?force=1`);
-					state.clientes = state.clientes.filter(c => String(c.id) !== String(id));
-					if (typeof saveToStorage === 'function') saveToStorage();
-					renderClientesImpl();
-					if (typeof updateDashboard === 'function') updateDashboard();
-				} catch (e2) {
-					showAlert('Falha ao excluir com força: ' + (e2?.data?.error || e2?.message || ''), { title: 'Erro' });
-				}
-			} else {
-				showAlert('Não foi possível excluir no servidor.' + (serverMsg ? `\n${serverMsg}` : ''), { title: 'Erro' });
-			}
+			showAlert('Não foi possível excluir no servidor.' + (serverMsg ? `\n${serverMsg}` : ''), { title: 'Erro' });
 		}
 	}
 

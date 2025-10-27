@@ -33,34 +33,20 @@ async function update(req, res) {
 
 async function remove(req, res) {
   const { id } = req.params;
+  // Exclusão resiliente: sempre remove em cascata orçamentos e itens do cliente
   try {
-    await prisma.cliente.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      const orcs = await tx.orcamento.findMany({ where: { clienteId: id }, select: { id: true } });
+      const ids = orcs.map(o => o.id);
+      if (ids.length) {
+        await tx.orcamentoItem.deleteMany({ where: { orcamentoId: { in: ids } } });
+        await tx.orcamento.deleteMany({ where: { id: { in: ids } } });
+      }
+      await tx.cliente.delete({ where: { id } });
+    });
     return res.status(204).send();
   } catch (err) {
-    // Prisma foreign key constraint
-    const code = err && err.code;
-    if (code === 'P2003') {
-      const force = String(req.query.force || '').toLowerCase();
-      if (force === '1' || force === 'true') {
-        // Forçar exclusão em cascata: orçamentos e itens do cliente
-        await prisma.$transaction(async (tx) => {
-          const orcs = await tx.orcamento.findMany({ where: { clienteId: id }, select: { id: true } });
-          const ids = orcs.map(o => o.id);
-          if (ids.length) {
-            await tx.orcamentoItem.deleteMany({ where: { orcamentoId: { in: ids } } });
-            await tx.orcamento.deleteMany({ where: { id: { in: ids } } });
-          }
-          await tx.cliente.delete({ where: { id } });
-        });
-        return res.status(204).send();
-      }
-      return res.status(409).json({
-        error: 'Não é possível excluir o cliente: existem orçamentos vinculados.',
-        code: 'CLIENTE_COM_ORCAMENTOS',
-        suggestion: 'Exclua os orçamentos do cliente ou confirme exclusão forçada com ?force=1'
-      });
-    }
-    console.error('Erro ao excluir cliente:', err);
+    console.error('Erro ao excluir cliente (cascade):', err);
     return res.status(500).json({ error: 'Erro ao excluir cliente.' });
   }
 }

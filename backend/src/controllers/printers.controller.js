@@ -36,7 +36,7 @@ function ipsFromCidr(cidr) {
   return Array.from({ length: 254 }, (_, i) => `${p[0]}.${p[1]}.${p[2]}.${i + 1}`);
 }
 
-function checkPort(host, port, timeoutMs = 600) {
+function checkPort(host, port, timeoutMs = 1500) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let done = false;
@@ -82,44 +82,50 @@ async function getCurrent(req, res) {
 async function connect(req, res) {
   const { ip, name } = req.body || {};
   if (!ip) return res.status(400).json({ error: 'IP é obrigatório' });
-  const reachable = await isPrinter(ip);
-  if (!reachable) return res.status(400).json({ error: 'Impressora não respondendo nas portas 9100/631' });
+  // Salva mesmo que não responda agora; validamos no momento da impressão
   const row = await prisma.printerSetting.upsert({
     where: { id: 'singleton' },
     update: { ip, name: name || null },
     create: { id: 'singleton', ip, name: name || null }
   });
-  return res.json({ ok: true, ip: row.ip, name: row.name });
+  // Teste de reachability não bloqueante
+  let reachable = false;
+  try { reachable = await isPrinter(ip); } catch(_) {}
+  return res.json({ ok: true, ip: row.ip, name: row.name, reachable });
 }
 
 async function scan(req, res) {
-  const primarySubnet = req.query.subnet || getLocalSubnet();
-  const candidates = new Set(ipsFromCidr(primarySubnet));
-  // Expand to common home subnets to improve hit rate
   try {
-    const base = primarySubnet.split('/')[0];
-    if (!base.startsWith('192.168.0.')) ipsFromCidr('192.168.0.0/24').forEach(ip => candidates.add(ip));
-    if (!base.startsWith('192.168.1.')) ipsFromCidr('192.168.1.0/24').forEach(ip => candidates.add(ip));
-  } catch(_) {}
-  const ips = Array.from(candidates);
-  const limit = 64; // concurrency limit
-  const results = [];
-  let idx = 0;
-  async function worker() {
-    while (idx < ips.length) {
-      const my = idx++;
-      const ip = ips[my];
-      try {
-        const printer = await isPrinter(ip);
-        if (printer) results.push({ ip });
-      } catch {}
+    const primarySubnet = req.query.subnet || getLocalSubnet();
+    const candidates = new Set(ipsFromCidr(primarySubnet));
+    // Expand to common home subnets to improve hit rate
+    try {
+      const base = primarySubnet.split('/')[0];
+      if (!base.startsWith('192.168.0.')) ipsFromCidr('192.168.0.0/24').forEach(ip => candidates.add(ip));
+      if (!base.startsWith('192.168.1.')) ipsFromCidr('192.168.1.0/24').forEach(ip => candidates.add(ip));
+    } catch(_) {}
+    const ips = Array.from(candidates);
+    const limit = 48; // balance speed and CPU
+    const results = [];
+    let idx = 0;
+    async function worker() {
+      while (idx < ips.length) {
+        const my = idx++;
+        const ip = ips[my];
+        try {
+          const printer = await isPrinter(ip);
+          if (printer) results.push({ ip });
+        } catch {}
+      }
     }
+    const workers = Array.from({ length: Math.min(limit, ips.length) }, () => worker());
+    await Promise.all(workers);
+    results.sort((a, b) => parseInt(a.ip.split('.').pop(), 10) - parseInt(b.ip.split('.').pop(), 10));
+    return res.json({ subnet: primarySubnet, printers: results });
+  } catch (e) {
+    // Nunca falha com 500; retorna vazio para o frontend lidar de forma amigável
+    return res.json({ subnet: getLocalSubnet(), printers: [] });
   }
-  const workers = Array.from({ length: Math.min(limit, ips.length) }, () => worker());
-  await Promise.all(workers);
-  // Sort by last octet for readability
-  results.sort((a, b) => parseInt(a.ip.split('.').pop(), 10) - parseInt(b.ip.split('.').pop(), 10));
-  return res.json({ subnet: primarySubnet, printers: results });
 }
 
 function readPdfBufferFromPath(relPath) {
@@ -197,9 +203,9 @@ async function print(req, res) {
       pdfBuffer = Buffer.from(await u.arrayBuffer());
     }
 
-    // Try IPP first, fallback to RAW:9100
-    let ok = await printToIpp(row.ip, pdfBuffer);
-    if (!ok) ok = await printToRaw9100(row.ip, pdfBuffer);
+    // Preferir RAW 9100 (compatível com seu exemplo). Se falhar, tentar IPP.
+    let ok = await printToRaw9100(row.ip, pdfBuffer);
+    if (!ok) ok = await printToIpp(row.ip, pdfBuffer);
     if (!ok) return res.status(502).json({ error: 'Falha ao enviar para a impressora' });
     return res.json({ ok: true });
   } catch (e) {

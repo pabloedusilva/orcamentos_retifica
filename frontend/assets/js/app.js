@@ -104,6 +104,20 @@ document.addEventListener('DOMContentLoaded', function() {
         renderAllLists();
         initSettingsUI();
         initWorldTimeClock();
+        // Load printer indicator status once at startup
+        (async () => {
+            try {
+                if (window.api && window.api.getPrinterCurrent) {
+                    const cur = await window.api.getPrinterCurrent();
+                    const el = document.getElementById('sidebar-printer-indicator');
+                    if (el) {
+                        const dot = cur && cur.reachable ? 'gray' : 'red';
+                        const text = cur && cur.ip ? `Impressora: ${cur.ip}` : 'Impressora: não conectada';
+                        el.innerHTML = `<span class="dot ${dot}"></span><span>${text}</span>`;
+                    }
+                }
+            } catch(_) {}
+        })();
     });
     // Navegação via cards do dashboard
     const statCards = document.querySelectorAll('.stat-card[data-goto]');
@@ -967,6 +981,7 @@ function navigateToSection(sectionName) {
         clientes: 'Clientes',
         pecas: 'Peças',
         servicos: 'Serviços',
+        impressoras: 'Impressoras',
         configuracoes: 'Configurações'
     };
 
@@ -976,6 +991,7 @@ function navigateToSection(sectionName) {
         clientes: 'Cadastro de clientes',
         pecas: 'Catálogo de peças',
         servicos: 'Catálogo de serviços',
+        impressoras: 'Gerenciar impressoras da rede',
         configuracoes: 'Gerencie as configurações da empresa'
     };
 
@@ -1047,6 +1063,19 @@ async function reloadSection(sectionName) {
                 if (typeof updateLogoPreview === 'function') {
                     updateLogoPreview();
                 }
+                break;
+
+            case 'impressoras':
+                // Atualiza status no indicador e deixa a seção cuidar do resto
+                try {
+                    const cur = await api.getPrinterCurrent();
+                    const el = document.getElementById('sidebar-printer-indicator');
+                    if (el) {
+                        const dot = cur && cur.reachable ? 'gray' : 'red';
+                        const text = cur && cur.ip ? `Impressora: ${cur.ip}` : 'Impressora: não conectada';
+                        el.innerHTML = `<span class="dot ${dot}"></span><span>${text}</span>`;
+                    }
+                } catch(_) {}
                 break;
         }
     } catch (error) {

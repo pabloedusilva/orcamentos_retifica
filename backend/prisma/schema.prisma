@@ -151,3 +151,18 @@ model OrcamentoItem {
   @@index([orcamentoId])
   @@map("orcamento_items")
 }
+
+// ================================
+// IMPRESSORA CONECTADA (SINGLETON)
+// ================================
+
+model PrinterSetting {
+  // Singleton row to store the currently connected printer
+  id        String   @id @default("singleton") @db.VarChar(20)
+  ip        String?  @db.VarChar(45)
+  name      String?  @db.VarChar(200)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("printer_setting")
+}

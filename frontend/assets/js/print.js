@@ -1454,8 +1454,87 @@
   `;
   }
 
-  function printDocument() {
-    // Impressão nativa em todos os dispositivos via iframe oculto
+  async function networkDirectPrintSelectedVias() {
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
+    const S = getAppState();
+    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos 1 via para imprimir.', { title: 'Atenção' }); return; }
+
+    const loadingMsg = document.createElement('div');
+    loadingMsg.id = 'pdf-download-loading';
+    loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:white;padding:30px 50px;border-radius:12px;z-index:100000;font-size:16px;text-align:center;';
+    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Preparando impressão...';
+    document.body.appendChild(loadingMsg);
+
+    try {
+      await preloadCompanyLogo();
+      const { jsPDF } = window.jspdf; 
+      const pdf = new jsPDF('p','mm','a4');
+      const margin = 10; 
+      const pageWidth = 210; 
+      const pageHeight = 297; 
+      const contentWidth = pageWidth - margin*2;
+
+      for (const via of selected) {
+        const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'absolute'; 
+        wrapper.style.left = '-9999px'; 
+        wrapper.style.top = '0'; 
+        wrapper.style.width = '210mm'; 
+        wrapper.style.backgroundColor = '#ffffff';
+        wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
+        document.body.appendChild(wrapper);
+        await preloadImagesInElement(wrapper);
+        const canvas = await html2canvas(wrapper, { 
+          scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false,
+          width: wrapper.scrollWidth, height: wrapper.scrollHeight 
+        });
+        document.body.removeChild(wrapper);
+        const imgData = canvas.toDataURL('image/png', 0.95);
+        const imgHeight = (canvas.height * contentWidth) / canvas.width;
+        let heightLeft = imgHeight; 
+        let position = margin;
+        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+        heightLeft -= (pageHeight - margin*2);
+        while (heightLeft > 0) {
+          position = margin - (imgHeight - heightLeft) + 0.1;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+          heightLeft -= (pageHeight - margin*2);
+        }
+        if (via !== selected[selected.length-1]) pdf.addPage();
+      }
+
+      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Enviando para impressora...';
+      const blob = pdf.output('blob');
+      const upload = await uploadPdfToServer(blob, `orcamento-${orcamento.id}.pdf`);
+      await api.printPdfPath(upload.path);
+      document.body.removeChild(loadingMsg);
+      showAlert('Enviado para a impressora com sucesso.', { title: 'Pronto' });
+    } catch (e) {
+      console.error(e);
+      const loadingEl = document.getElementById('pdf-download-loading');
+      if (loadingEl) document.body.removeChild(loadingEl);
+      showAlert('Falha ao enviar para a impressora.', { title: 'Erro' });
+    }
+  }
+
+  async function printDocument() {
+    // Se houver impressora conectada, enviar direto via IP; senão, fallback para nativo
+    try {
+      if (window.api && window.api.getPrinterCurrent) {
+        const cur = await window.api.getPrinterCurrent();
+        if (cur && cur.ip) {
+          return networkDirectPrintSelectedVias();
+        }
+      }
+    } catch(_) {}
+    // Impressão nativa via iframe oculto
     const orcamentoId = getPreviewOrcamentoId();
     if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
     const S = getAppState();

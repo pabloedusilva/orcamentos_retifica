@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="assets/css/sections/pecas.css">
     <link rel="stylesheet" href="assets/css/sections/servicos.css">
     <link rel="stylesheet" href="assets/css/sections/configuracoes.css">
+    <link rel="stylesheet" href="assets/css/sections/impressoras.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <!-- Bibliotecas para geração de PDF -->
@@ -45,6 +46,10 @@
                     <span class="clock-time" id="clock-time">--:--</span>
                     <span class="clock-date" id="clock-date">--/--/----</span>
                 </div>
+                <div class="printer-indicator" id="sidebar-printer-indicator" title="Status da Impressora">
+                    <span class="dot red"></span>
+                    <span>Impressora: não conectada</span>
+                </div>
             </div>
             
             <ul class="nav-menu">
@@ -67,6 +72,10 @@
                 <li class="nav-item" data-section="servicos">
                     <i class="fas fa-tools"></i>
                     <span>Serviços</span>
+                </li>
+                <li class="nav-item" data-section="impressoras">
+                    <i class="fas fa-print"></i>
+                    <span>Impressoras</span>
                 </li>
                 <li class="nav-item" data-section="configuracoes">
                     <i class="fas fa-cog"></i>
@@ -336,6 +345,26 @@
                         </tbody>
                     </table>
                 </div>
+            </section>
+
+            <!-- Impressoras Section -->
+            <section class="section" id="impressoras">
+                <div class="section-header">
+                    <h2>Impressoras</h2>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn-reload" onclick="reloadSection('impressoras')" title="Recarregar">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="scan-row">
+                    <input type="text" id="printer-ip-input" placeholder="Adicionar IP manualmente (ex.: 192.168.1.50)" />
+                    <button class="btn" id="printer-connect-btn"><i class="fas fa-link"></i> Conectar</button>
+                    <button class="btn btn-secondary" id="printer-scan-btn"><i class="fas fa-search"></i> Escanear impressoras</button>
+                </div>
+                <div id="printer-current" class="current">Carregando status...</div>
+                <h3 style="margin-top:16px;">Encontradas na rede</h3>
+                <div class="results" id="printer-scan-results"></div>
             </section>
 
             <!-- Configurações Section -->
@@ -923,6 +952,7 @@
     <script src="assets/js/sections/clientes.js?v=20251027-01"></script>
     <script src="assets/js/sections/pecas.js?v=20251021-01"></script>
     <script src="assets/js/sections/servicos.js?v=20251021-01"></script>
+    <script src="assets/js/sections/impressoras.js?v=20251117-01"></script>
     <script src="assets/js/sections/configuracoes.js?v=20251021-01"></script>
     <script src="assets/js/components/footer.js?v=20251021-01"></script>
 </body>

@@ -47,5 +47,11 @@
     return res.json(); // { url }
   }
 
-  window.api = { API_BASE, getToken, setToken, isAuthed, get, post, put, patch, del, uploadImage };
+  // Printers API helpers
+  async function getPrinterCurrent(){ return get('/api/v1/printers/current'); }
+  async function scanPrinters(){ return get('/api/v1/printers/scan'); }
+  async function connectPrinter(ip, name){ return post('/api/v1/printers/connect', { ip, name }); }
+  async function printPdfPath(path){ return post('/api/v1/printers/print', { path }); }
+
+  window.api = { API_BASE, getToken, setToken, isAuthed, get, post, put, patch, del, uploadImage, getPrinterCurrent, scanPrinters, connectPrinter, printPdfPath };
 })();

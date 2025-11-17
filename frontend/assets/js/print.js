@@ -1490,8 +1490,9 @@
         wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
         document.body.appendChild(wrapper);
         await preloadImagesInElement(wrapper);
+        // Render em alta resolução para fidelidade de impressão A4
         const canvas = await html2canvas(wrapper, { 
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false,
+          scale: 3, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false,
           width: wrapper.scrollWidth, height: wrapper.scrollHeight 
         });
         document.body.removeChild(wrapper);

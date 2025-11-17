@@ -151,7 +151,10 @@ async function printToIpp(ip, pdfBuffer) {
           "operation-attributes-tag": {
             "requesting-user-name": "retifica-app",
             "job-name": "Orcamento",
-            "document-format": "application/pdf"
+            "document-format": "application/pdf",
+            // Hint A4 portrait for consistent layout
+            "media": "iso_a4",
+            "orientation-requested": 3 // 3: portrait
           },
           data: pdfBuffer
         };
@@ -203,9 +206,9 @@ async function print(req, res) {
       pdfBuffer = Buffer.from(await u.arrayBuffer());
     }
 
-    // Preferir RAW 9100 (compatível com seu exemplo). Se falhar, tentar IPP.
-    let ok = await printToRaw9100(row.ip, pdfBuffer);
-    if (!ok) ok = await printToIpp(row.ip, pdfBuffer);
+    // Preferir IPP (maior fidelidade ao PDF/A4); fallback para RAW 9100
+    let ok = await printToIpp(row.ip, pdfBuffer);
+    if (!ok) ok = await printToRaw9100(row.ip, pdfBuffer);
     if (!ok) return res.status(502).json({ error: 'Falha ao enviar para a impressora' });
     return res.json({ ok: true });
   } catch (e) {

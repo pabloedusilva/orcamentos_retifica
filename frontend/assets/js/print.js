@@ -1513,7 +1513,11 @@
       loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Enviando para impressora...';
       const blob = pdf.output('blob');
       const upload = await uploadPdfToServer(blob, `orcamento-${orcamento.id}.pdf`);
-      await api.printPdfPath(upload.path);
+      if (window.api && typeof window.api.printPdfPath === 'function') {
+        await window.api.printPdfPath(upload.path);
+      } else {
+        throw new Error('API de impressora não disponível');
+      }
       document.body.removeChild(loadingMsg);
       showAlert('Enviado para a impressora com sucesso.', { title: 'Pronto' });
     } catch (e) {
@@ -1525,7 +1529,7 @@
   }
 
   async function printDocument() {
-    // Se houver impressora conectada, enviar direto via IP; senão, fallback para nativo
+    // Se houver impressora conectada, enviar direto via IP; senão, mostrar alerta (sem impressão nativa)
     try {
       if (window.api && window.api.getPrinterCurrent) {
         const cur = await window.api.getPrinterCurrent();
@@ -1534,54 +1538,8 @@
         }
       }
     } catch(_) {}
-    // Impressão nativa via iframe oculto
-    const orcamentoId = getPreviewOrcamentoId();
-    if (!orcamentoId) { showAlert('Erro: Não foi possível identificar o orçamento para impressão', { title: 'Atenção' }); return; }
-    const S = getAppState();
-    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
-    if (!orcamento) { showAlert('Orçamento não encontrado', { title: 'Atenção' }); return; }
-
-    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
-    const selected = getSelectedVias();
-    if (!selected.length) { showAlert('Selecione pelo menos 1 via para imprimir.', { title: 'Atenção' }); return; }
-    const todasVias = generateVias(orcamento, cliente, selected);
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const iw = iframe.contentWindow;
-    const idoc = iframe.contentDocument || iw.document;
-    idoc.open();
-    idoc.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Impressão - Orçamento ${orcamento.id}</title>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-      <style>${getInlineStyles()}</style>
-    </head><body>${todasVias}</body></html>`);
-    idoc.close();
-
-    iframe.onload = function(){
-      try {
-        const imgs = idoc.images || [];
-        const promises = Array.from(imgs).map(img => new Promise(r => { if (img.complete) r(); else { img.onload = () => r(); img.onerror = () => r(); }}));
-        Promise.all(promises).then(() => {
-          try { iw.focus(); } catch {}
-          try { iw.print(); } catch(e) { showAlert('Falha ao iniciar a impressão no dispositivo.', { title: 'Erro' }); }
-          setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
-        });
-      } catch(e) {
-        try { iw.print(); } catch{}
-        setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 2000);
-      }
-    };
+    // Sem impressora conectada: exibir aviso e não usar a impressão nativa
+    showAlert('Nenhuma impressora conectada. Conecte uma em "Impressoras" para imprimir direto. Você ainda pode baixar o PDF normalmente.', { title: 'Impressão indisponível' });
   }
 
   function showPrintOptions() {

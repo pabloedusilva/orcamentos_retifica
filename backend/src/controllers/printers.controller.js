@@ -93,8 +93,15 @@ async function connect(req, res) {
 }
 
 async function scan(req, res) {
-  const subnet = req.query.subnet || getLocalSubnet();
-  const ips = ipsFromCidr(subnet);
+  const primarySubnet = req.query.subnet || getLocalSubnet();
+  const candidates = new Set(ipsFromCidr(primarySubnet));
+  // Expand to common home subnets to improve hit rate
+  try {
+    const base = primarySubnet.split('/')[0];
+    if (!base.startsWith('192.168.0.')) ipsFromCidr('192.168.0.0/24').forEach(ip => candidates.add(ip));
+    if (!base.startsWith('192.168.1.')) ipsFromCidr('192.168.1.0/24').forEach(ip => candidates.add(ip));
+  } catch(_) {}
+  const ips = Array.from(candidates);
   const limit = 64; // concurrency limit
   const results = [];
   let idx = 0;
@@ -112,7 +119,7 @@ async function scan(req, res) {
   await Promise.all(workers);
   // Sort by last octet for readability
   results.sort((a, b) => parseInt(a.ip.split('.').pop(), 10) - parseInt(b.ip.split('.').pop(), 10));
-  return res.json({ subnet, printers: results });
+  return res.json({ subnet: primarySubnet, printers: results });
 }
 
 function readPdfBufferFromPath(relPath) {

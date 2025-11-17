@@ -36,7 +36,7 @@
         const ip = (els.ipInput.value || '').trim();
         if (!ip) { showAlert('Digite um IP válido.', { title: 'Atenção' }); return; }
         try{
-          const res = await api.connectPrinter(ip);
+          const res = await (window.api && window.api.connectPrinter ? window.api.connectPrinter(ip) : Promise.reject(new Error('API indisponível')));
           await refreshCurrent();
           showAlert('Impressora conectada com sucesso.', { title: 'Pronto' });
         } catch(err){
@@ -50,7 +50,7 @@
         els.scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Escaneando...';
         els.results.innerHTML = '';
         try {
-          const data = await api.scanPrinters();
+          const data = await (window.api && window.api.scanPrinters ? window.api.scanPrinters() : Promise.reject(new Error('API indisponível')));
           if (!data.printers || !data.printers.length) {
             els.results.innerHTML = '<div class="empty">Nenhuma impressora encontrada na sub-rede.</div>';
           } else {

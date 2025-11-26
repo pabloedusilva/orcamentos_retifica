@@ -3,6 +3,7 @@ node_modules/
 backend/.env
 **/.env
 uploads/
+logs/
 coverage/
 *.log
 npm-debug.log*

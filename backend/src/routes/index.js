@@ -10,6 +10,7 @@ const filesRoutes = require('./v1/files');
 const settingsRoutes = require('./v1/settings');
 const timeRoutes = require('./v1/time');
 const printersRoutes = require('./v1/printers');
+const printRoutes = require('../printRoutes');
 
 router.use('/v1/auth', authRoutes);
 router.use('/v1/clientes', clienteRoutes);
@@ -20,5 +21,6 @@ router.use('/v1/files', filesRoutes);
 router.use('/v1/settings', settingsRoutes);
 router.use('/v1/time', timeRoutes);
 router.use('/v1/printers', printersRoutes);
+router.use('/v1/print', printRoutes);
 
 module.exports = { router };

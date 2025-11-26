@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const { prisma } = require('../db/prisma');
 const { z } = require('zod');
 
+// Ajuste: reduzir mínimo da senha para alinhar ao frontend (>=3)
 const loginSchema = z.object({
   username: z.string().regex(/^[a-zA-Z0-9._-]{3,32}$/),
-  password: z.string().min(8).max(128)
+  password: z.string().min(3).max(128)
 });
 
 async function login(req, res) {

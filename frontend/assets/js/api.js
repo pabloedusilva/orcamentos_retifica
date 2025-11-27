@@ -47,11 +47,11 @@
     return res.json(); // { url }
   }
 
-  // Printers API helpers
-  async function getPrinterCurrent(){ return get('/api/v1/printers/current'); }
-  async function scanPrinters(){ return get('/api/v1/printers/scan'); }
-  async function connectPrinter(ip, name){ return post('/api/v1/printers/connect', { ip, name }); }
-  async function printPdfPath(path){ return post('/api/v1/printers/print', { path }); }
+  // Printers API helpers (disabled): keep section UI but no network calls
+  async function getPrinterCurrent(){ return { connected: false, name: null, ip: null }; }
+  async function scanPrinters(){ return { printers: [] }; }
+  async function connectPrinter(ip, name){ return { success: false, message: 'Função desativada' }; }
+  async function printPdfPath(path){ return { success: false, message: 'Função desativada' }; }
 
   window.api = { API_BASE, getToken, setToken, isAuthed, get, post, put, patch, del, uploadImage, getPrinterCurrent, scanPrinters, connectPrinter, printPdfPath };
 })();

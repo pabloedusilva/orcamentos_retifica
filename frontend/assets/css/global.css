@@ -211,6 +211,13 @@ body {
 .brand-clock .clock-time { font-weight: 600; color: var(--text-primary); letter-spacing: 0.3px; }
 .brand-clock .clock-date { opacity: .9; }
 
+/* Printer indicator – elegant, minimal */
+.printer-indicator { display:flex; align-items:center; gap:8px; padding: 8px 10px; border:1px solid var(--border-color); border-radius: 10px; background: #fff; }
+.printer-indicator .dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow: 0 0 0 3px rgba(0,0,0,0.04); }
+.printer-indicator .dot.green { background: #22c55e; }
+.printer-indicator .dot.red { background: #ef4444; }
+.printer-indicator span { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
 .nav-menu {
     list-style: none;
     padding: 20px 0;
@@ -1647,6 +1654,23 @@ body.modal-open { overflow: hidden; }
 }
 .icon-btn { border: 1px solid var(--border-color); background:#fff; color: var(--text-primary); border-radius: 8px; padding: 8px; width: 36px; height: 36px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
 .icon-btn:hover { background:#f8fafc; }
+/* Specific hover title for print (generate PDF) */
+#print-preview-modal .print-actions .icon-btn[onclick="printViaPDF()"]:hover::after {
+    content: 'Imprimir';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111827;
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: 0 4px 10px rgba(0,0,0,.15);
+    margin-top: 6px;
+    z-index: 2000;
+}
 .icon-btn:focus-visible { outline: 2px solid rgba(0,0,0,0.06); outline-offset: 2px; border-radius: 8px; }
 /* Somente o botão de fechar sem borda */
 .icon-btn.icon-btn-close { border: none; background: transparent; }

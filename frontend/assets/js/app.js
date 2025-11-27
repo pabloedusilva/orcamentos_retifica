@@ -9,12 +9,12 @@ let state = {
     // controle de sequência diária de IDs de orçamentos (por chave DDMMYYYY)
     lastIdByDate: {},
     company: {
-        nome: 'Janio Retífica',
-        endereco: 'Rua das Oficinas, 123 - Centro - São Paulo/SP',
-        telefone: '(11) 3456-7890',
-    email: 'pabloff.621.621@gmail.com',
-        cnpj: '12.345.678/0001-90',
-        cep: '01234-567',
+        nome: '',
+        endereco: '',
+        telefone: '',
+        email: '',
+        cnpj: '',
+        cep: '',
         logoDataUrl: '',
         logoPreset: '',
         selectedLogo: '',
@@ -104,17 +104,12 @@ document.addEventListener('DOMContentLoaded', function() {
         renderAllLists();
         initSettingsUI();
         initWorldTimeClock();
-        // Load printer indicator status once at startup
+        // Set static printer model in sidebar (no network status)
         (async () => {
             try {
-                if (window.api && window.api.getPrinterCurrent) {
-                    const cur = await window.api.getPrinterCurrent();
-                    const el = document.getElementById('sidebar-printer-indicator');
-                    if (el) {
-                        const dot = cur && cur.reachable ? 'gray' : 'red';
-                        const text = cur && cur.ip ? `Impressora: ${cur.ip}` : 'Impressora: não conectada';
-                        el.innerHTML = `<span class="dot ${dot}"></span><span>${text}</span>`;
-                    }
+                const el = document.getElementById('sidebar-printer-indicator');
+                if (el) {
+                    el.innerHTML = `<span class="dot green"></span><span>Epson L365</span>`;
                 }
             } catch(_) {}
         })();
@@ -1066,16 +1061,7 @@ async function reloadSection(sectionName) {
                 break;
 
             case 'impressoras':
-                // Atualiza status no indicador e deixa a seção cuidar do resto
-                try {
-                    const cur = await api.getPrinterCurrent();
-                    const el = document.getElementById('sidebar-printer-indicator');
-                    if (el) {
-                        const dot = cur && cur.reachable ? 'gray' : 'red';
-                        const text = cur && cur.ip ? `Impressora: ${cur.ip}` : 'Impressora: não conectada';
-                        el.innerHTML = `<span class="dot ${dot}"></span><span>${text}</span>`;
-                    }
-                } catch(_) {}
+                // Seção removida; nenhuma ação necessária
                 break;
         }
     } catch (error) {

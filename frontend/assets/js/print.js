@@ -447,154 +447,17 @@
   // Removed sharing and server-upload features per simplification request
 
   async function printViaPDF() {
-    const orcamentoId = getPreviewOrcamentoId(); 
+    // NOVO: Enfileiramento de jobs de impressão para garantir envio serial
+    const orcamentoId = getPreviewOrcamentoId();
     if (!orcamentoId) return;
-    
     const S = getAppState();
-    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId)); 
+    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
     if (!orcamento) return;
-    
     const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
     const selected = getSelectedVias();
-    
-    if (!selected.length) { 
-      showAlert('Selecione pelo menos 1 via para baixar.', { title: 'Atenção' }); 
-      return; 
-    }
+    if (!selected.length) { showAlert('Selecione pelo menos 1 via para enviar.', { title: 'Atenção' }); return; }
 
-    try {
-      // Mostrar loading
-      const loadingMsg = document.createElement('div');
-      loadingMsg.id = 'pdf-download-loading';
-      loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:white;padding:30px 50px;border-radius:12px;z-index:100000;font-size:16px;text-align:center;';
-      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Imprimindo...';
-      document.body.appendChild(loadingMsg);
-
-      // Always generate client-side PDF and prompt save
-
-      // Fallback: gerar PDF no cliente
-      await preloadCompanyLogo();
-      const { jsPDF } = window.jspdf; 
-      const pdf = new jsPDF('p','mm','a4');
-      const margin = 10; 
-      const pageWidth = 210; 
-      const pageHeight = 297; 
-      const contentWidth = pageWidth - margin*2;
-      
-      for (const via of selected) {
-        const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'absolute'; 
-        wrapper.style.left = '-9999px'; 
-        wrapper.style.top = '0'; 
-        wrapper.style.width = '210mm'; 
-        wrapper.style.backgroundColor = '#ffffff';
-        wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
-        document.body.appendChild(wrapper);
-        
-        await preloadImagesInElement(wrapper);
-        
-        const canvas = await html2canvas(wrapper, { 
-          // Reduce scale to keep PDF size reasonable
-          scale: 1.2, 
-          useCORS: true, 
-          allowTaint: true, 
-          backgroundColor: '#ffffff', 
-          logging: false, 
-          width: wrapper.scrollWidth, 
-          height: wrapper.scrollHeight 
-        });
-        
-        document.body.removeChild(wrapper);
-        
-        // Prefer JPEG with moderate quality for much smaller PDFs
-        const imgData = canvas.toDataURL('image/jpeg', 0.6);
-        const imgHeight = (canvas.height * contentWidth) / canvas.width;
-        let heightLeft = imgHeight; 
-        let position = margin;
-        
-        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-        heightLeft -= (pageHeight - margin*2);
-        
-        while (heightLeft > 0) {
-          position = margin - (imgHeight - heightLeft) + 0.1;
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
-          heightLeft -= (pageHeight - margin*2);
-        }
-        
-        if (via !== selected[selected.length-1]) pdf.addPage();
-      }
-
-      loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:24px;margin-bottom:10px;"></i><br>Enviando para a impressora...';
-
-      const pdfBlob = pdf.output('blob');
-      // If too large for email, fall back to sending per via separately
-      const maxEmailSizeBytes = 20 * 1024 * 1024; // conservative ~20MB
-      const token = window.api && window.api.getToken ? window.api.getToken() : null;
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const apiBase = `${window.api.API_BASE}/api/v1/print/email`;
-
-      // Helper to POST a blob
-      async function postBlob(blob, nameSuffix) {
-        const fd = new FormData();
-        fd.append('pdf', blob, nameSuffix);
-        return fetch(apiBase, { method: 'POST', headers, body: fd });
-      }
-      const formData = new FormData();
-      const id = getPreviewOrcamentoId() || 'orcamento';
-      const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
-      const viasSlug = selected.join('-');
-      const fileName = `orcamento-${clienteNome}-${id}-${viasSlug}.pdf`;
-      let res;
-      if (pdfBlob.size > maxEmailSizeBytes && selected.length > 1) {
-        // Regenerate per via with lower quality to keep under limits
-        const { jsPDF } = window.jspdf;
-        let allOk = true;
-        for (const via of selected) {
-          const singlePdf = new jsPDF('p','mm','a4');
-          const margin = 10; const pageWidth = 210; const contentWidth = pageWidth - margin*2; const pageHeight = 297;
-          const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
-          const wrapper = document.createElement('div');
-          wrapper.style.position = 'absolute'; wrapper.style.left = '-9999px'; wrapper.style.top = '0'; wrapper.style.width = '210mm'; wrapper.style.backgroundColor = '#ffffff';
-          wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
-          document.body.appendChild(wrapper);
-          await preloadImagesInElement(wrapper);
-          const canv = await html2canvas(wrapper, { scale: 1, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
-          document.body.removeChild(wrapper);
-          const imgJpg = canv.toDataURL('image/jpeg', 0.5);
-          const imgHeight2 = (canv.height * contentWidth) / canv.width; let heightLeft2 = imgHeight2; let pos2 = margin;
-          singlePdf.addImage(imgJpg, 'JPEG', margin, pos2, contentWidth, imgHeight2);
-          heightLeft2 -= (pageHeight - margin*2);
-          while (heightLeft2 > 0) { pos2 = margin - (imgHeight2 - heightLeft2) + 0.1; singlePdf.addPage(); singlePdf.addImage(imgJpg, 'JPEG', margin, pos2, contentWidth, imgHeight2); heightLeft2 -= (pageHeight - margin*2); }
-          const b = singlePdf.output('blob');
-          const name = `orcamento-${clienteNome}-${id}-${via}.pdf`;
-          res = await postBlob(b, name);
-          if (!res.ok) { allOk = false; break; }
-        }
-        if (!allOk) {
-          document.body.removeChild(loadingMsg);
-          showAlert('Falha ao enviar e-mail para impressão (tamanho).', { title: 'Erro' });
-          return;
-        }
-      } else {
-        formData.append('pdf', pdfBlob, fileName);
-        res = await fetch(apiBase, { method: 'POST', headers, body: formData });
-      }
-      document.body.removeChild(loadingMsg);
-      if (res.ok) {
-        showAlert('Arquivo enviado para a impressora por e-mail.', { title: 'Pronto' });
-      } else {
-        showAlert('Falha ao enviar e-mail para impressão.', { title: 'Erro' });
-      }
-      
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      const loadingEl = document.getElementById('pdf-download-loading');
-      if (loadingEl) document.body.removeChild(loadingEl);
-      
-      showAlert('Erro ao gerar PDF. Tente novamente.', { title: 'Erro' });
-    }
+    enqueuePrintJob({ orcamentoId, orcamento, cliente, selected });
   }
 
   function getMobilePrintStyles() {
@@ -1350,6 +1213,276 @@
   const api = { getPreviewOrcamentoId, getCurrentViaType, convertLocalImageToBase64Safe, replaceImageWithPlaceholder, preloadCompanyLogo, showImageFallbackNotification, generateOrcamentoPreview, generateAllVias, detectDevice, preloadImagesInElement, buildOrcamentoText, printOrcamento, switchViaPreview, printViaPDF, getMobilePrintStyles, getInlineStyles };
   G.Print = api;
   Object.assign(G, api);
+
+  // Progress toast helpers
+  function createProgressToast(message) {
+    let toast = document.getElementById('printer-progress-toast');
+    if (toast) { toast.querySelector('span').textContent = message; return toast; }
+    toast = document.createElement('div');
+    toast.id = 'printer-progress-toast';
+    toast.className = 'progress-toast';
+    toast.innerHTML = `<i class="fas fa-spinner fa-spin"></i><span>${message}</span>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(()=> toast.classList.add('show'));
+    return toast;
+  }
+  function updateProgressUI(message) {
+    // Update overlay if still visible; otherwise update/create toast
+    const overlay = document.getElementById('pdf-download-loading');
+    if (overlay) {
+      const inner = overlay.querySelector('.plo-inner span');
+      if (inner) inner.textContent = message;
+    } else {
+      createProgressToast(message);
+    }
+  }
+
+  // === PDF generation (reintroduced for download/share) ===
+  // Configurações de qualidade do PDF
+  const PDF_QUALITY_PRESETS = {
+    high: { scale: 2, quality: 0.92 },       // Alta definição (texto mais nítido)
+    standard: { scale: 1.4, quality: 0.85 }, // Equilíbrio
+    fallback: { scale: 1.2, quality: 0.70 }  // Menor tamanho
+  };
+
+  function estimateBase64Size(base64) {
+    // Aproximação: tamanho em bytes ~ (len * 3/4) - padding
+    if (!base64) return 0;
+    const len = base64.length;
+    return Math.round(len * 0.75);
+  }
+
+  function chooseQualityPreset(selectedCount) {
+    // Heurística simples: se muitas vias, evita explosão de tamanho
+    if (selectedCount >= 3) return PDF_QUALITY_PRESETS.standard;
+    if (selectedCount === 2) return PDF_QUALITY_PRESETS.high;
+    return PDF_QUALITY_PRESETS.high;
+  }
+
+  async function generateSelectedViasPDFBlob(orcamento, cliente, selected) {
+    await preloadCompanyLogo();
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','mm','a4');
+    const margin = 10;
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const contentWidth = pageWidth - margin*2;
+    let firstPage = true;
+    const preset = chooseQualityPreset(selected.length);
+    const { scale: initialScale, quality: initialQuality } = preset;
+    for (const via of selected) {
+      const viaHtml = generateOrcamentoPreview(orcamento, cliente, via);
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'absolute';
+      wrapper.style.left = '-9999px';
+      wrapper.style.top = '0';
+      wrapper.style.width = '210mm';
+      wrapper.style.backgroundColor = '#ffffff';
+      wrapper.innerHTML = `<style>${getInlineStyles()}</style>${viaHtml}`;
+      document.body.appendChild(wrapper);
+      await preloadImagesInElement(wrapper);
+      // Renderização em alta escala para melhorar nitidez do texto
+      const canvas = await html2canvas(wrapper, { scale: initialScale, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, width: wrapper.scrollWidth, height: wrapper.scrollHeight });
+      document.body.removeChild(wrapper);
+      let imgData = canvas.toDataURL('image/jpeg', initialQuality);
+      // Fallback dinâmico se imagem muito grande (> 4MB base64 ~ 3MB real)
+      const sizeBytes = estimateBase64Size(imgData);
+      if (sizeBytes > 4_000_000) {
+        // Reduz só a qualidade; evita novo render custoso
+        imgData = canvas.toDataURL('image/jpeg', PDF_QUALITY_PRESETS.fallback.quality);
+      }
+      const imgHeight = (canvas.height * contentWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = margin;
+      if (!firstPage) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, position, contentWidth, imgHeight);
+      heightLeft -= (pageHeight - margin*2);
+      while (heightLeft > 0) {
+        position = margin - (imgHeight - heightLeft) + 0.1;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', margin, position, contentWidth, imgHeight);
+        heightLeft -= (pageHeight - margin*2);
+      }
+      firstPage = false;
+    }
+    const blob = pdf.output('blob');
+    const id = getPreviewOrcamentoId() || 'orcamento';
+    const clienteNome = cliente ? cliente.nome.replace(/[^a-zA-Z0-9]/g, '_') : 'cliente';
+    const viasSlug = selected.join('-');
+    const filename = `orcamento-${clienteNome}-${id}-${viasSlug}.pdf`;
+    return { blob, filename };
+  }
+
+  async function downloadOrcamentoPDF() {
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) return;
+    const S = getAppState();
+    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) return;
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos uma via.', { title: 'Atenção' }); return; }
+    updateProgressUI('Gerando PDF...');
+    try {
+      const { blob, filename } = await generateSelectedViasPDFBlob(orcamento, cliente, selected);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 8000);
+      const toast = document.getElementById('printer-progress-toast');
+      if (toast) { toast.classList.add('toast-out'); setTimeout(()=>toast.remove(),250); }
+      showAlert('PDF gerado e baixado com sucesso.', { title: 'Pronto' });
+    } catch(e) {
+      console.error(e);
+      const toast = document.getElementById('printer-progress-toast');
+      if (toast) { toast.classList.add('toast-out'); setTimeout(()=>toast.remove(),250); }
+      showAlert('Falha ao gerar PDF.', { title: 'Erro' });
+    }
+  }
+
+  async function shareOrcamentoWhatsApp() {
+    const orcamentoId = getPreviewOrcamentoId();
+    if (!orcamentoId) return;
+    const S = getAppState();
+    const orcamento = S.orcamentos.find(o => String(o.id) === String(orcamentoId));
+    if (!orcamento) return;
+    const cliente = S.clientes.find(c => String(c.id) === String(orcamento.clienteId));
+    const selected = getSelectedVias();
+    if (!selected.length) { showAlert('Selecione pelo menos uma via.', { title: 'Atenção' }); return; }
+    updateProgressUI('Gerando PDF para compartilhar...');
+    try {
+      const { blob, filename } = await generateSelectedViasPDFBlob(orcamento, cliente, selected);
+      const token = window.api && window.api.getToken ? window.api.getToken() : null;
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+      const fd = new FormData();
+      fd.append('pdf', blob, filename);
+      const res = await fetch(`${window.api.API_BASE}/api/v1/files/pdf`, { method: 'POST', headers, body: fd });
+      const toast = document.getElementById('printer-progress-toast');
+      if (toast) { toast.classList.add('toast-out'); setTimeout(()=>toast.remove(),250); }
+      if (!res.ok) { showAlert('Falha ao subir PDF para compartilhamento.', { title: 'Erro' }); return; }
+      const data = await res.json();
+      const base = window.location.origin;
+      const link = base + data.url;
+      const msg = `Orçamento ${orcamento.id} - ${cliente ? cliente.nome : ''}\nAcesse: ${link}`.trim();
+      const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(wa, '_blank');
+      showAlert('Link gerado. Abrindo WhatsApp...', { title: 'Pronto' });
+    } catch(err) {
+      console.error(err);
+      const toast = document.getElementById('printer-progress-toast');
+      if (toast) { toast.classList.add('toast-out'); setTimeout(()=>toast.remove(),250); }
+      showAlert('Erro ao compartilhar via WhatsApp.', { title: 'Erro' });
+    }
+  }
+
+  // Expose new functions globally
+  G.downloadOrcamentoPDF = downloadOrcamentoPDF;
+  G.shareOrcamentoWhatsApp = shareOrcamentoWhatsApp;
+
+  // ================= Fila de impressão =================
+  const printerQueue = [];
+  let printerProcessing = false;
+  let printerInitialOverlayTimeout = null;
+  let printerOverlayEl = null;
+
+  function enqueuePrintJob(job) {
+    printerQueue.push(job);
+    // Se este é o único job recém adicionado, mostra overlay inicial
+    if (!printerProcessing && printerQueue.length === 1) {
+      showPrinterInitialOverlay();
+      // Processar após pequena defasagem para permitir múltiplos cliques rápidos
+      setTimeout(() => processNextPrintJob(), 300); // pequena espera para agrupar
+    } else {
+      updateQueueToast();
+    }
+  }
+
+  function showPrinterInitialOverlay() {
+    removePrinterOverlay();
+    printerOverlayEl = document.createElement('div');
+    printerOverlayEl.id = 'pdf-download-loading';
+    printerOverlayEl.className = 'print-loading-overlay';
+    printerOverlayEl.innerHTML = '<div class="plo-inner"><i class="fas fa-spinner fa-spin"></i><span>Preparando envio...</span></div>';
+    document.body.appendChild(printerOverlayEl);
+    // Após 5s, some overlay e mostra toast
+    printerInitialOverlayTimeout = setTimeout(() => {
+      fadeOutPrinterOverlay();
+    }, 5000);
+  }
+
+  function fadeOutPrinterOverlay() {
+    if (!printerOverlayEl) return;
+    printerOverlayEl.classList.add('fade-out');
+    setTimeout(() => {
+      removePrinterOverlay();
+      createProgressToast('Enviando para a impressora...');
+      updateQueueToast();
+    }, 320);
+  }
+
+  function removePrinterOverlay() {
+    if (printerOverlayEl && printerOverlayEl.parentNode) {
+      printerOverlayEl.parentNode.removeChild(printerOverlayEl);
+    }
+    printerOverlayEl = null;
+    if (printerInitialOverlayTimeout) {
+      clearTimeout(printerInitialOverlayTimeout);
+      printerInitialOverlayTimeout = null;
+    }
+  }
+
+  function updateQueueToast() {
+    const inProgress = printerProcessing ? 1 : 0;
+    const waiting = printerProcessing ? printerQueue.length - 1 : printerQueue.length;
+    const total = printerQueue.length;
+    const baseMsg = 'Enviando para a impressora...';
+    let detail = '';
+    if (total === 0) detail = 'Nenhum job.';
+    else if (waiting === 0 && inProgress === 1) detail = '1 em andamento.';
+    else detail = `${inProgress} em andamento, ${waiting} na fila.`;
+    createProgressToast(`${baseMsg} (${detail})`);
+  }
+
+  async function processNextPrintJob() {
+    if (printerProcessing) return;
+    if (printerQueue.length === 0) {
+      // Limpa toast quando terminar tudo
+      const toast = document.getElementById('printer-progress-toast');
+      if (toast) { toast.classList.add('toast-out'); setTimeout(()=>toast.remove(),250); }
+      return;
+    }
+    printerProcessing = true;
+    updateQueueToast();
+    const job = printerQueue[0];
+    try {
+      await executePrintJob(job);
+      showAlert('Orçamento enviado para a impressora.', { title: 'Pronto' });
+    } catch(e) {
+      console.error('Falha no job de impressão:', e);
+      showAlert('Falha ao enviar impressões.', { title: 'Erro' });
+    } finally {
+      printerQueue.shift();
+      printerProcessing = false;
+      updateQueueToast();
+      // Processar próximo
+      setTimeout(processNextPrintJob, 400);
+    }
+  }
+
+  async function executePrintJob(job) {
+    // job: { orcamentoId, orcamento, cliente, selected }
+    // Agora gera UM PDF único contendo todas as vias selecionadas
+    await preloadCompanyLogo();
+    updateQueueToast();
+    const token = window.api && window.api.getToken ? window.api.getToken() : null;
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const apiBase = `${window.api.API_BASE}/api/v1/print/email`;
+    const { blob, filename } = await generateSelectedViasPDFBlob(job.orcamento, job.cliente, job.selected);
+    const fd = new FormData();
+    fd.append('pdf', blob, filename);
+    const res = await fetch(apiBase, { method: 'POST', headers, body: fd });
+    if (!res.ok) throw new Error('Falha ao enviar PDF.');
+  }
   
   // Garantir que printOrcamento está disponível globalmente para inline handlers
   if (!G.printOrcamento) {

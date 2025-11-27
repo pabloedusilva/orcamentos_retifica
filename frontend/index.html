@@ -719,10 +719,13 @@
                 <div class="print-actions minimal">
                     <div class="action-separator"></div>
                     
-                    <button class="icon-btn" onclick="printViaPDF()" title="Baixar PDF (3 vias)">
+                    <button class="icon-btn" onclick="downloadOrcamentoPDF()" title="Baixar PDF (vias selecionadas)">
                         <i class="fas fa-download"></i>
                     </button>
-                    <button class="icon-btn" onclick="printViaPDF()" title="Imprimir">
+                    <button class="icon-btn whatsapp-btn" onclick="shareOrcamentoWhatsApp()" title="Compartilhar via WhatsApp">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>
+                    <button class="icon-btn" onclick="printViaPDF()" title="Imprimir (enviar para impressora)">
                         <i class="fas fa-print"></i>
                     </button>
                     <button class="icon-btn icon-btn-close" onclick="closeModal('print-preview-modal')" title="Fechar">

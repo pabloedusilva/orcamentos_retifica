@@ -13,11 +13,19 @@ async function sendPdfToPrinterEmail(req, res) {
     }
 
     if (!req.file) {
-      return res.status(400).json({ error: 'PDF file is required (field name: pdf).' });
+      return res.status(400).json({ error: 'Arquivo PDF é obrigatório (campo: pdf).' });
     }
 
     const filePath = req.file.path;
     const fileName = path.basename(filePath);
+    const ext = path.extname(fileName).toLowerCase();
+    const isPdf = req.file.mimetype === 'application/pdf' || ext === '.pdf';
+
+    if (!isPdf) {
+      // Remove arquivo inválido para não acumular
+      try { fs.unlinkSync(filePath); } catch {}
+      return res.status(400).json({ error: 'Formato inválido. Somente PDF é aceito.' });
+    }
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -29,13 +37,16 @@ async function sendPdfToPrinterEmail(req, res) {
     const mailOptions = {
       from: gmailUser,
       to: toEmail,
-      subject: '', // empty subject to avoid printers adding header pages
-      text: '',    // empty body to avoid any body printing
+      subject: '',
+      text: '',
       html: '',
-      // Explicit envelope without subject/body
       envelope: { from: gmailUser, to: toEmail },
       attachments: [
-        { filename: fileName, path: filePath, contentType: 'application/pdf' }
+        {
+          filename: fileName.endsWith('.pdf') ? fileName : fileName + '.pdf',
+          path: filePath,
+          contentType: 'application/pdf'
+        }
       ]
     };
 

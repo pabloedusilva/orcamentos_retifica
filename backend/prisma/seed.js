@@ -1,4 +1,5 @@
-require('dotenv').config();
+// Load env from project root to ensure DATABASE_URL and seed creds
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 

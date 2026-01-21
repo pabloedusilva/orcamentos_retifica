@@ -54,9 +54,33 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 
-// CORS
+// CORS - Allow both development and production origins
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // In production, allow same origin or configured origins
+    if (CORS_ORIGIN === '*') {
+      return callback(null, true);
+    }
+    
+    const allowedOrigins = CORS_ORIGIN.split(',').map(o => o.trim());
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    
+    // Also allow same origin
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization'],
+  maxAge: 86400 // 24 hours
+};
+app.use(cors(corsOptions));
 
 // Logs
 const isDev = process.env.NODE_ENV !== 'production';

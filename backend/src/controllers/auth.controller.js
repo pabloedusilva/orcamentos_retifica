@@ -10,12 +10,21 @@ const loginSchema = z.object({
 });
 
 async function login(req, res) {
-  const parse = loginSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: 'Invalid payload' });
-  const { username, password } = parse.data;
+  try {
+    const parse = loginSchema.safeParse(req.body);
+    if (!parse.success) {
+      console.log('Login validation failed:', parse.error);
+      return res.status(400).json({ error: 'Invalid payload' });
+    }
+    const { username, password } = parse.data;
 
-  const user = await prisma.user.findUnique({ where: { username } });
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    console.log('Login attempt for user:', username);
+    
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user) {
+      console.log('User not found:', username);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
   // Account lockout config from env
   const LOCK_THRESHOLD = parseInt(process.env.AUTH_LOCK_THRESHOLD || '7', 10);
@@ -63,7 +72,12 @@ async function login(req, res) {
     maxAge: twoDaysMs
   });
 
+  console.log('Login successful for user:', username);
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Internal server error during login' });
+  }
 }
 
 async function me(req, res) {

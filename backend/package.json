@@ -18,6 +18,9 @@
   "engines": {
     "node": ">=18"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.83",
     "@prisma/client": "^5.19.0",
